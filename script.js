@@ -22,7 +22,8 @@ const STAFF_CLICK_Y_MAX = BOTTOM;
 const KEY_X = 684;
 const KEY_WIDTH = 198;
 const SLIDER_X = 946;
-const GUIDE_NOTE_X = 25;
+const GUIDE_LINE_NOTE_X = 17;
+const GUIDE_SPACE_NOTE_X = 38;
 const GUIDE_NOTE_FONT_SIZE = 18;
 const GUIDE_DOUBLE_PRESS_MS = 400;
 
@@ -110,14 +111,16 @@ const state = {
   selectedIndex: 14,
   dragSource: null,
   soundEnabled: false,
-  guideNotesVisible: false,
+  lineNotesVisible: false,
+  spaceNotesVisible: false,
 };
 
 const svg = document.getElementById("musicBoard");
 const selectedLabel = document.getElementById("selectedLabel");
 const soundToggle = document.getElementById("soundToggle");
 const soundStatus = document.getElementById("soundStatus");
-const guideNotesToggle = document.getElementById("guideNotesToggle");
+const lineNotesToggle = document.getElementById("lineNotesToggle");
+const spaceNotesToggle = document.getElementById("spaceNotesToggle");
 const resetGuideNotes = document.getElementById("resetGuideNotes");
 const hiddenGuideNoteIds = new Set();
 const audioBuffers = new Map();
@@ -377,16 +380,20 @@ function drawGrandStaff(parent) {
 }
 
 function drawGuideNotes(parent) {
-  if (!state.guideNotesVisible) return;
+  if (!state.lineNotesVisible && !state.spaceNotesVisible) return;
 
   const group = el("g", { class: "guide-notes", "aria-label": "Staff guide notes" });
   for (const guide of GUIDE_NOTES) {
+    if (guide.type === "line" && !state.lineNotesVisible) continue;
+    if (guide.type === "space" && !state.spaceNotesVisible) continue;
     if (hiddenGuideNoteIds.has(guide.id)) continue;
     const y = pitchY(byName[guide.pitch]);
+    const isLine = guide.type === "line";
+    const x = isLine ? GUIDE_LINE_NOTE_X : GUIDE_SPACE_NOTE_X;
     group.append(el("rect", {
-      x: 3,
+      x: isLine ? 2 : 28,
       y: y - STEP * 0.48,
-      width: 44,
+      width: isLine ? 28 : 21,
       height: STEP * 0.96,
       rx: 7,
       fill: "transparent",
@@ -396,7 +403,7 @@ function drawGuideNotes(parent) {
       "data-guide-id": guide.id,
       "aria-label": `${guide.clef} ${guide.type} guide note ${guide.label}; press twice quickly to hide`,
     }));
-    addText(group, GUIDE_NOTE_X, y, guide.label, GUIDE_NOTE_FONT_SIZE, {
+    addText(group, x, y, guide.label, GUIDE_NOTE_FONT_SIZE, {
       anchor: "middle",
       baseline: "central",
       weight: 700,
@@ -558,8 +565,10 @@ function render() {
 }
 
 function syncGuideControls() {
-  guideNotesToggle.setAttribute("aria-pressed", String(state.guideNotesVisible));
-  guideNotesToggle.textContent = `Guide Notes: ${state.guideNotesVisible ? "On" : "Off"}`;
+  lineNotesToggle.setAttribute("aria-pressed", String(state.lineNotesVisible));
+  lineNotesToggle.textContent = `Line Notes: ${state.lineNotesVisible ? "On" : "Off"}`;
+  spaceNotesToggle.setAttribute("aria-pressed", String(state.spaceNotesVisible));
+  spaceNotesToggle.textContent = `Space Notes: ${state.spaceNotesVisible ? "On" : "Off"}`;
   resetGuideNotes.disabled = hiddenGuideNoteIds.size === 0;
 }
 
@@ -713,8 +722,16 @@ svg.addEventListener("keydown", (event) => {
   }
 });
 
-guideNotesToggle.addEventListener("click", () => {
-  state.guideNotesVisible = !state.guideNotesVisible;
+lineNotesToggle.addEventListener("click", () => {
+  state.lineNotesVisible = !state.lineNotesVisible;
+  lastGuidePressId = null;
+  lastGuidePressAt = 0;
+  syncGuideControls();
+  render();
+});
+
+spaceNotesToggle.addEventListener("click", () => {
+  state.spaceNotesVisible = !state.spaceNotesVisible;
   lastGuidePressId = null;
   lastGuidePressAt = 0;
   syncGuideControls();
