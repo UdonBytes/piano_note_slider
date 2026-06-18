@@ -76,6 +76,32 @@ header p {
 .sound-status:empty { visibility: hidden; }
 .sound-status.error { color: var(--try); }
 
+.guide-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.guide-button {
+  min-height: 38px;
+  padding: 6px 13px;
+  border: 2px solid var(--ink);
+  border-radius: 11px;
+  color: var(--ink);
+  background: #fff;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.guide-button:hover,
+.guide-button:focus-visible { background: #fff3b5; outline: none; }
+.guide-button[aria-pressed="true"] { background: var(--highlight); }
+.guide-button:disabled { cursor: default; opacity: .4; }
+.guide-button:disabled:hover { background: #fff; }
+
 .creator-credit {
   margin: 14px 0 8px;
   color: #9a9a9a;
@@ -120,6 +146,8 @@ header p {
 .staff-note-hit { cursor: grab; touch-action: none; }
 .staff-note-hit:active { cursor: grabbing; }
 .staff-note.dragging { stroke: var(--highlight); stroke-width: 7; }
+.guide-note-hit { cursor: pointer; touch-action: manipulation; }
+.guide-note-hit:focus-visible { outline: none; stroke: var(--highlight-dark); stroke-width: 2; }
 
 @media (max-width: 720px) {
   .app-shell { width: min(100% - 12px, 1180px); padding-top: 10px; }

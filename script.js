@@ -22,6 +22,9 @@ const STAFF_CLICK_Y_MAX = BOTTOM;
 const KEY_X = 684;
 const KEY_WIDTH = 198;
 const SLIDER_X = 946;
+const GUIDE_NOTE_X = 25;
+const GUIDE_NOTE_FONT_SIZE = 18;
+const GUIDE_DOUBLE_PRESS_MS = 400;
 
 // Audio files use simple note names such as C4.wav. Change this one constant
 // to "mp3" when the audio folder contains C4.mp3-style files instead.
@@ -72,16 +75,51 @@ function generatePitchList() {
 const pitches = generatePitchList();
 const byName = Object.fromEntries(pitches.map((pitch) => [pitch.name, pitch]));
 
+const GUIDE_NOTES = [
+  ...["E4", "G4", "B4", "D5", "F5"].map((pitch, index) => ({
+    id: `treble-line-${index}`,
+    clef: "treble",
+    type: "line",
+    label: pitch[0],
+    pitch,
+  })),
+  ...["F4", "A4", "C5", "E5"].map((pitch, index) => ({
+    id: `treble-space-${index}`,
+    clef: "treble",
+    type: "space",
+    label: pitch[0],
+    pitch,
+  })),
+  ...["G2", "B2", "D3", "F3", "A3"].map((pitch, index) => ({
+    id: `bass-line-${index}`,
+    clef: "bass",
+    type: "line",
+    label: pitch[0],
+    pitch,
+  })),
+  ...["A2", "C3", "E3", "G3"].map((pitch, index) => ({
+    id: `bass-space-${index}`,
+    clef: "bass",
+    type: "space",
+    label: pitch[0],
+    pitch,
+  })),
+];
+
 const state = {
   selectedIndex: 14,
   dragSource: null,
   soundEnabled: false,
+  guideNotesVisible: false,
 };
 
 const svg = document.getElementById("musicBoard");
 const selectedLabel = document.getElementById("selectedLabel");
 const soundToggle = document.getElementById("soundToggle");
 const soundStatus = document.getElementById("soundStatus");
+const guideNotesToggle = document.getElementById("guideNotesToggle");
+const resetGuideNotes = document.getElementById("resetGuideNotes");
+const hiddenGuideNoteIds = new Set();
 const audioBuffers = new Map();
 let audioContext = null;
 let audioPreloadPromise = null;
@@ -90,6 +128,8 @@ let lastAudioStart = 0;
 let audioSelectionVersion = 0;
 let pendingAudioTimer = null;
 let soundStatusHideTimer = null;
+let lastGuidePressId = null;
+let lastGuidePressAt = 0;
 
 function audioPathForPitch(pitch) {
   return `${AUDIO_DIRECTORY}/${pitch.name}.${AUDIO_EXTENSION}`;
@@ -336,6 +376,36 @@ function drawGrandStaff(parent) {
   renderBassClef(parent);
 }
 
+function drawGuideNotes(parent) {
+  if (!state.guideNotesVisible) return;
+
+  const group = el("g", { class: "guide-notes", "aria-label": "Staff guide notes" });
+  for (const guide of GUIDE_NOTES) {
+    if (hiddenGuideNoteIds.has(guide.id)) continue;
+    const y = pitchY(byName[guide.pitch]);
+    group.append(el("rect", {
+      x: 3,
+      y: y - STEP * 0.48,
+      width: 44,
+      height: STEP * 0.96,
+      rx: 7,
+      fill: "transparent",
+      class: "guide-note-hit",
+      tabindex: 0,
+      role: "button",
+      "data-guide-id": guide.id,
+      "aria-label": `${guide.clef} ${guide.type} guide note ${guide.label}; press twice quickly to hide`,
+    }));
+    addText(group, GUIDE_NOTE_X, y, guide.label, GUIDE_NOTE_FONT_SIZE, {
+      anchor: "middle",
+      baseline: "central",
+      weight: 700,
+      fill: "#777777",
+    }).setAttribute("pointer-events", "none");
+  }
+  parent.append(group);
+}
+
 function drawStaffClickZone(parent) {
   parent.append(el("rect", {
     x: STAFF_CLICK_X_MIN,
@@ -476,6 +546,7 @@ function render() {
   svg.append(el("rect", { width: 1000, height: 720, fill: "#fffdf5" }));
   const selectedPitch = pitches[state.selectedIndex];
   drawGrandStaff(svg);
+  drawGuideNotes(svg);
   drawStaffClickZone(svg);
   drawArrow(svg, selectedPitch, selectedPitch);
   drawSelectedNote(svg, selectedPitch, true, state.dragSource === "staff");
@@ -484,6 +555,26 @@ function render() {
   drawSlider(svg, state.selectedIndex);
 
   selectedLabel.textContent = selectedPitch.label;
+}
+
+function syncGuideControls() {
+  guideNotesToggle.setAttribute("aria-pressed", String(state.guideNotesVisible));
+  guideNotesToggle.textContent = `Guide Notes: ${state.guideNotesVisible ? "On" : "Off"}`;
+  resetGuideNotes.disabled = hiddenGuideNoteIds.size === 0;
+}
+
+function handleGuideNotePress(guideId) {
+  const now = performance.now();
+  if (guideId === lastGuidePressId && now - lastGuidePressAt <= GUIDE_DOUBLE_PRESS_MS) {
+    hiddenGuideNoteIds.add(guideId);
+    lastGuidePressId = null;
+    lastGuidePressAt = 0;
+    syncGuideControls();
+    render();
+    return;
+  }
+  lastGuidePressId = guideId;
+  lastGuidePressAt = now;
 }
 
 function updateSelection(noteIndex, options = {}) {
@@ -516,6 +607,11 @@ function pointerToNaturalIndex(event) {
 }
 
 svg.addEventListener("pointerdown", (event) => {
+  if (event.target.classList.contains("guide-note-hit")) {
+    handleGuideNotePress(event.target.dataset.guideId);
+    event.preventDefault();
+    return;
+  }
   if (event.target.classList.contains("slider-hit")) {
     beginDrag("slider");
     svg.setPointerCapture(event.pointerId);
@@ -590,6 +686,11 @@ svg.addEventListener("pointerup", finishDrag);
 svg.addEventListener("pointercancel", finishDrag);
 
 svg.addEventListener("keydown", (event) => {
+  if (event.target.classList.contains("guide-note-hit") && (event.key === "Enter" || event.key === " ")) {
+    handleGuideNotePress(event.target.dataset.guideId);
+    event.preventDefault();
+    return;
+  }
   if (event.target.classList.contains("white-key") && (event.key === "Enter" || event.key === " ")) {
     const noteIndex = Number(event.target.dataset.index);
     updateSelection(noteIndex, { playSound: false });
@@ -610,6 +711,22 @@ svg.addEventListener("keydown", (event) => {
     updateSelection(state.selectedIndex + delta);
     event.preventDefault();
   }
+});
+
+guideNotesToggle.addEventListener("click", () => {
+  state.guideNotesVisible = !state.guideNotesVisible;
+  lastGuidePressId = null;
+  lastGuidePressAt = 0;
+  syncGuideControls();
+  render();
+});
+
+resetGuideNotes.addEventListener("click", () => {
+  hiddenGuideNoteIds.clear();
+  lastGuidePressId = null;
+  lastGuidePressAt = 0;
+  syncGuideControls();
+  render();
 });
 
 soundToggle.addEventListener("click", async () => {
@@ -666,6 +783,7 @@ soundToggle.addEventListener("click", async () => {
   }
 });
 
+syncGuideControls();
 render();
 
 // Fetch and decode every note immediately. The context remains suspended and
