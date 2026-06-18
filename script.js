@@ -27,8 +27,8 @@ const SLIDER_X = 946;
 // to "mp3" when the audio folder contains C4.mp3-style files instead.
 const AUDIO_DIRECTORY = "audio";
 const AUDIO_EXTENSION = "wav";
-const AUDIO_THROTTLE_MS = 100;
-const DRAG_IDLE_PLAY_MS = 175;
+const AUDIO_THROTTLE_MS = 65;
+const DRAG_END_REPLAY_GUARD_MS = 200;
 const AUDIO_UNLOCK_TIMEOUT_MS = 1500;
 const AUDIO_ENVELOPE_MS = 8;
 
@@ -92,8 +92,8 @@ let activeAudioSource = null;
 let lastAudioStart = 0;
 let audioSelectionVersion = 0;
 let pendingAudioTimer = null;
-let dragIdleTimer = null;
-let lastPlayedSelectionVersion = -1;
+let lastSoundPlayedNoteIndex = -1;
+let lastSoundPlayedAt = 0;
 
 function audioPathForPitch(pitch) {
   return `${AUDIO_DIRECTORY}/${pitch.name}.${AUDIO_EXTENSION}`;
@@ -117,33 +117,6 @@ function cancelPendingAudio() {
     window.clearTimeout(pendingAudioTimer);
     pendingAudioTimer = null;
   }
-}
-
-function cancelDragIdlePlayback() {
-  if (dragIdleTimer !== null) {
-    window.clearTimeout(dragIdleTimer);
-    dragIdleTimer = null;
-  }
-}
-
-function scheduleDragIdlePlayback() {
-  cancelDragIdlePlayback();
-  if (!state.dragSource || !state.soundEnabled) return;
-
-  const selectionToken = audioSelectionVersion;
-  dragIdleTimer = window.setTimeout(() => {
-    dragIdleTimer = null;
-    if (!state.dragSource || selectionToken !== audioSelectionVersion) return;
-    if (lastPlayedSelectionVersion === selectionToken) return;
-
-    // Read selectedIndex at firing time so a paused drag can only play the
-    // pitch currently shown by the note, key, slider, and arrows.
-    playPitch(state.selectedIndex, {
-      forceReplay: true,
-      bypassThrottle: true,
-      selectionToken,
-    });
-  }, DRAG_IDLE_PLAY_MS);
 }
 
 function stopCurrentAudio() {
@@ -219,7 +192,8 @@ function playPitch(index, options = {}) {
       source.start(startTime);
       activeAudioSource = { source, gain };
       lastAudioStart = performance.now();
-      lastPlayedSelectionVersion = selectionToken;
+      lastSoundPlayedNoteIndex = index;
+      lastSoundPlayedAt = lastAudioStart;
       if (pitches[index].name === "G5") {
         console.log(`[Audio debug] Playing G5 from ${audioPathForPitch(pitches[index])}; cached duration ${buffer.duration.toFixed(3)}s`);
       }
@@ -514,12 +488,20 @@ function updateSelection(noteIndex, options = {}) {
   const changed = nextIndex !== state.selectedIndex;
   audioSelectionVersion += 1;
   cancelPendingAudio();
-  cancelDragIdlePlayback();
   state.selectedIndex = nextIndex;
   if (changed) {
     render();
     if (playSound) playPitch(nextIndex, { selectionToken: audioSelectionVersion });
   }
+}
+
+function shouldPlayDragNote(noteIndex) {
+  return noteIndex !== state.selectedIndex;
+}
+
+function wasNotePlayedRecently(noteIndex) {
+  return lastSoundPlayedNoteIndex === noteIndex
+    && performance.now() - lastSoundPlayedAt < DRAG_END_REPLAY_GUARD_MS;
 }
 
 function pointerToNaturalIndex(event) {
@@ -589,17 +571,19 @@ svg.addEventListener("pointermove", (event) => {
     ? coalescedEvents[coalescedEvents.length - 1]
     : event;
   const nextIndex = pointerToNaturalIndex(latestEvent);
-  if (nextIndex !== state.selectedIndex) state.dragMoved = true;
-  updateSelection(nextIndex);
-  scheduleDragIdlePlayback();
+  if (shouldPlayDragNote(nextIndex)) {
+    state.dragMoved = true;
+    updateSelection(nextIndex);
+  }
   event.preventDefault();
 });
 
 function finishDrag(event) {
   if (!state.dragSource) return;
-  cancelDragIdlePlayback();
   const completedSource = state.dragSource;
-  const shouldForceFinalNote = state.dragMoved
+  const wasDragged = state.dragMoved;
+  const intentionalStaffTap = completedSource === "staff" && !wasDragged;
+  const shouldForceFinalNote = wasDragged
     || completedSource === "slider"
     || completedSource === "staff";
   state.dragSource = null;
@@ -607,12 +591,16 @@ function finishDrag(event) {
   state.dragMoved = false;
   if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
   if (shouldForceFinalNote) {
+    const skipRecentReplay = !intentionalStaffTap
+      && wasNotePlayedRecently(state.selectedIndex);
     updateSelection(state.selectedIndex, { playSound: false });
-    playPitch(state.selectedIndex, {
-      forceReplay: true,
-      bypassThrottle: true,
-      selectionToken: audioSelectionVersion,
-    });
+    if (!skipRecentReplay) {
+      playPitch(state.selectedIndex, {
+        forceReplay: true,
+        bypassThrottle: true,
+        selectionToken: audioSelectionVersion,
+      });
+    }
   }
   render();
 }
@@ -648,7 +636,6 @@ soundToggle.addEventListener("click", async () => {
     state.soundEnabled = false;
     soundToggle.setAttribute("aria-pressed", "false");
     soundToggle.textContent = "🔇 Sound Off";
-    cancelDragIdlePlayback();
     stopCurrentAudio();
     setSoundStatus("Sound Off");
     console.log("[Audio] Sound disabled");
