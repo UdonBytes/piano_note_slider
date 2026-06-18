@@ -14,9 +14,22 @@ const TOP = 54;
 const BOTTOM = 676;
 const STEP = (BOTTOM - TOP) / 29;
 const NOTE_X = 400;
+const LEDGER_HALF_WIDTH = 54.9; // 10% shorter than the previous 61px half-width.
+const STAFF_CLICK_X_MIN = 355;
+const STAFF_CLICK_X_MAX = 505;
+const STAFF_CLICK_Y_MIN = TOP;
+const STAFF_CLICK_Y_MAX = BOTTOM;
 const KEY_X = 684;
 const KEY_WIDTH = 198;
 const SLIDER_X = 946;
+
+// Audio files use simple note names such as C4.wav. Change this one constant
+// to "mp3" when the audio folder contains C4.mp3-style files instead.
+const AUDIO_DIRECTORY = "audio";
+const AUDIO_EXTENSION = "wav";
+const AUDIO_THROTTLE_MS = 100;
+const AUDIO_UNLOCK_TIMEOUT_MS = 1500;
+const AUDIO_ENVELOPE_MS = 8;
 
 // Treble clef: its lower swirl is aligned with the G4 line (the second line
 // from the bottom of the treble staff). It may extend slightly past the staff.
@@ -59,31 +72,154 @@ function generatePitchList() {
 const pitches = generatePitchList();
 const byName = Object.fromEntries(pitches.map((pitch) => [pitch.name, pitch]));
 
-function readSessionNumber(key) {
-  try {
-    return Number(window.sessionStorage.getItem(key) || 0);
-  } catch {
-    return 0;
-  }
-}
-
 const state = {
   selectedIndex: 14,
-  mode: "study",
-  difficulty: "easy",
-  quizTargetIndex: 14,
-  quizAnswered: false,
-  quizLocked: false,
-  score: readSessionNumber("pianoScore"),
-  attempts: readSessionNumber("pianoAttempts"),
   dragSource: null,
+  dragStartIndex: null,
+  dragMoved: false,
+  soundEnabled: false,
 };
 
 const svg = document.getElementById("musicBoard");
 const selectedLabel = document.getElementById("selectedLabel");
-const rangeLabel = document.getElementById("rangeLabel");
-const feedback = document.getElementById("feedback");
-const score = document.getElementById("score");
+const soundToggle = document.getElementById("soundToggle");
+const soundStatus = document.getElementById("soundStatus");
+const audioBuffers = new Map();
+let audioContext = null;
+let audioPreloadPromise = null;
+let activeAudioSource = null;
+let lastAudioStart = 0;
+
+function audioPathForPitch(pitch) {
+  return `${AUDIO_DIRECTORY}/${pitch.name}.${AUDIO_EXTENSION}`;
+}
+
+function setSoundStatus(message, isError = false) {
+  soundStatus.textContent = message;
+  soundStatus.classList.toggle("error", isError);
+}
+
+function ensureAudioContext() {
+  if (audioContext) return audioContext;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) throw new Error("Web Audio is not supported");
+  audioContext = new AudioContextClass();
+  return audioContext;
+}
+
+function stopCurrentAudio() {
+  if (activeAudioSource) {
+    const { source, gain } = activeAudioSource;
+    try {
+      const now = audioContext.currentTime;
+      const fadeEnd = now + AUDIO_ENVELOPE_MS / 1000;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(gain.gain.value, now);
+      gain.gain.linearRampToValueAtTime(0, fadeEnd);
+      source.stop(fadeEnd + 0.002);
+    } catch {
+      // The source may already have finished.
+    }
+    activeAudioSource = null;
+  }
+}
+
+function preloadAudioBuffers() {
+  if (audioPreloadPromise) return audioPreloadPromise;
+  ensureAudioContext();
+  audioPreloadPromise = Promise.all(pitches.map(async (pitch) => {
+    const path = audioPathForPitch(pitch);
+    try {
+      // Revalidate same-name WAV files so a newly repaired sample cannot be
+      // hidden behind an older browser cache entry.
+      const response = await fetch(path, { cache: "no-cache" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const encodedAudio = await response.arrayBuffer();
+      const decodedAudio = await audioContext.decodeAudioData(encodedAudio);
+      audioBuffers.set(pitch.index, decodedAudio);
+      return null;
+    } catch (error) {
+      const message = `Audio file missing or failed to load: ${path}`;
+      console.warn(message, error);
+      return message;
+    }
+  })).then((results) => results.filter(Boolean));
+  return audioPreloadPromise;
+}
+
+function playPitch(index, playImmediately = false) {
+  if (!state.soundEnabled || !audioContext) return;
+  const buffer = audioBuffers.get(index);
+  if (!buffer) return; // Preloading is still underway, or this file failed.
+
+  const now = performance.now();
+  if (!playImmediately && now - lastAudioStart < AUDIO_THROTTLE_MS) return;
+
+  try {
+    stopCurrentAudio();
+    const source = audioContext.createBufferSource();
+    const gain = audioContext.createGain();
+    const startTime = audioContext.currentTime;
+    source.buffer = buffer;
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(1, startTime + AUDIO_ENVELOPE_MS / 1000);
+    source.connect(gain);
+    gain.connect(audioContext.destination);
+    source.addEventListener("ended", () => {
+      if (activeAudioSource?.source === source) activeAudioSource = null;
+    }, { once: true });
+    source.start(startTime);
+    activeAudioSource = { source, gain };
+    lastAudioStart = now;
+    if (pitches[index].name === "G5") {
+      console.log(`[Audio debug] Playing G5 from ${audioPathForPitch(pitches[index])}; cached duration ${buffer.duration.toFixed(3)}s`);
+    }
+  } catch (error) {
+    const path = audioPathForPitch(pitches[index]);
+    console.warn(`Audio file missing or failed to load: ${path}`, error);
+    setSoundStatus(`Audio file missing or failed to load: ${path}`, true);
+  }
+}
+
+function playRawDebugNote(noteName) {
+  const pitch = byName[noteName];
+  const path = pitch ? audioPathForPitch(pitch) : "unknown";
+  if (!pitch || !audioBuffers.has(pitch.index)) {
+    console.warn(`Audio file missing or failed to load: ${path}`);
+    return null;
+  }
+  if (!state.soundEnabled || !audioContext || audioContext.state !== "running") {
+    console.warn(`[Audio debug] Turn Sound On before testing ${noteName}`);
+    return null;
+  }
+
+  stopCurrentAudio();
+  const buffer = audioBuffers.get(pitch.index);
+  const source = audioContext.createBufferSource();
+  const gain = audioContext.createGain();
+  source.buffer = buffer;
+  gain.gain.value = 1;
+  source.connect(gain);
+  gain.connect(audioContext.destination);
+  source.addEventListener("ended", () => {
+    if (activeAudioSource?.source === source) activeAudioSource = null;
+    console.log(`[Audio debug] ${noteName} raw cached playback ended`);
+  }, { once: true });
+  source.start();
+  activeAudioSource = { source, gain };
+  console.log(`[Audio debug] Raw ${noteName}: ${path}, ${buffer.duration.toFixed(3)}s`);
+  return { note: noteName, path, duration: buffer.duration };
+}
+
+window.audioDebug = {
+  playF5: () => playRawDebugNote("F5"),
+  playG5: () => playRawDebugNote("G5"),
+  playA5: () => playRawDebugNote("A5"),
+  durations: () => Object.fromEntries(["F5", "G5", "A5"].map((name) => {
+    const pitch = byName[name];
+    return [name, audioBuffers.get(pitch.index)?.duration ?? null];
+  })),
+};
 
 function pitchY(pitchOrIndex) {
   const index = typeof pitchOrIndex === "number" ? pitchOrIndex : pitchOrIndex.index;
@@ -98,7 +234,12 @@ function el(name, attributes = {}, text = "") {
 }
 
 function line(x1, y1, x2, y2, width = 3, color = "#121212") {
-  return el("line", { x1, y1, x2, y2, stroke: color, "stroke-width": width });
+  return el("line", {
+    x1, y1, x2, y2,
+    stroke: color,
+    "stroke-width": width,
+    "pointer-events": "none",
+  });
 }
 
 function addText(parent, x, y, text, size, options = {}) {
@@ -156,6 +297,19 @@ function drawGrandStaff(parent) {
   renderBassClef(parent);
 }
 
+function drawStaffClickZone(parent) {
+  parent.append(el("rect", {
+    x: STAFF_CLICK_X_MIN,
+    y: STAFF_CLICK_Y_MIN,
+    width: STAFF_CLICK_X_MAX - STAFF_CLICK_X_MIN,
+    height: STAFF_CLICK_Y_MAX - STAFF_CLICK_Y_MIN,
+    fill: "transparent",
+    class: "staff-click-zone",
+    role: "button",
+    "aria-label": "Select the nearest natural note on the staff",
+  }));
+}
+
 function ledgerSteps(pitch) {
   const step = pitch.index - 14;
   if (step > 10) return Array.from({ length: Math.floor((step - 10) / 2) }, (_, i) => 12 + i * 2);
@@ -165,9 +319,17 @@ function ledgerSteps(pitch) {
 
 function drawSelectedNote(parent, pitch, draggable = false, dragging = false) {
   const y = pitchY(pitch);
-  for (const step of ledgerSteps(pitch)) parent.append(line(NOTE_X - 61, pitchY(14) - step * STEP, NOTE_X + 61, pitchY(14) - step * STEP, 4));
+  for (const step of ledgerSteps(pitch)) {
+    parent.append(line(
+      NOTE_X - LEDGER_HALF_WIDTH,
+      pitchY(14) - step * STEP,
+      NOTE_X + LEDGER_HALF_WIDTH,
+      pitchY(14) - step * STEP,
+      4,
+    ));
+  }
   parent.append(el("ellipse", {
-    cx: NOTE_X, cy: y, rx: 38, ry: 26, fill: "#121212",
+    cx: NOTE_X, cy: y, rx: 30.76, ry: 21.09, fill: "#121212",
     transform: `rotate(-12 ${NOTE_X} ${y})`,
     class: `staff-note${dragging ? " dragging" : ""}`,
     "pointer-events": "none",
@@ -226,12 +388,12 @@ function drawArrow(parent, staffPitch, keyPitch) {
     // x=492 leaves a visible gap around both pieces of notation.
     x1: KEY_X - 8, y1: pitchY(keyPitch), x2: 492, y2: pitchY(staffPitch),
     stroke: "#121212", "stroke-width": 5, "stroke-linecap": "round", "marker-end": "url(#arrowhead)",
+    "pointer-events": "none",
   }));
 }
 
 function drawSlider(parent, selectedIndex) {
   parent.append(line(SLIDER_X, TOP + STEP / 2, SLIDER_X, BOTTOM - STEP / 2, 10, "#333"));
-  addText(parent, SLIDER_X, 20, "SLIDE", 17, { anchor: "middle" });
   addText(parent, SLIDER_X, 45, "High C", 16, { anchor: "middle" });
   addText(parent, SLIDER_X, 704, "Low C", 16, { anchor: "middle" });
   for (const pitch of pitches) {
@@ -270,93 +432,30 @@ function drawSliderToKeyArrow(parent, keyPitch) {
   }));
 }
 
-function displayedStaffPitch() {
-  return state.mode === "quiz" ? pitches[state.quizTargetIndex] : pitches[state.selectedIndex];
-}
-
 function render() {
   svg.replaceChildren();
   svg.append(el("rect", { width: 1000, height: 720, fill: "#fffdf5" }));
-  const staffPitch = displayedStaffPitch();
-  const keyPitch = state.mode === "study" || state.quizAnswered ? pitches[state.selectedIndex] : null;
+  const selectedPitch = pitches[state.selectedIndex];
   drawGrandStaff(svg);
-  drawArrow(svg, staffPitch, keyPitch);
-  drawSelectedNote(svg, staffPitch, state.mode === "study", state.dragSource === "staff");
-  drawKeyboard(svg, keyPitch ? keyPitch.index : -1);
-  drawSliderToKeyArrow(svg, keyPitch);
+  drawStaffClickZone(svg);
+  drawArrow(svg, selectedPitch, selectedPitch);
+  drawSelectedNote(svg, selectedPitch, true, state.dragSource === "staff");
+  drawKeyboard(svg, state.selectedIndex);
+  drawSliderToKeyArrow(svg, selectedPitch);
   drawSlider(svg, state.selectedIndex);
 
-  selectedLabel.textContent = state.mode === "quiz"
-    ? (state.quizLocked ? pitches[state.quizTargetIndex].label : "Find this note!")
-    : pitches[state.selectedIndex].label;
-  rangeLabel.textContent = state.mode === "quiz"
-    ? (state.difficulty === "easy" ? "Easy · F3 to G5 · 16 natural notes" : "Hard · Low C to High C · 29 natural notes")
-    : "29 natural notes · Low C to High C";
-  score.textContent = `Score: ${state.score} / ${state.attempts}`;
+  selectedLabel.textContent = selectedPitch.label;
 }
 
 function updateSelection(noteIndex, options = {}) {
-  const { submitQuizAnswer = false } = options;
+  const { playSound = true } = options;
   const nextIndex = Math.max(0, Math.min(28, noteIndex));
   const changed = nextIndex !== state.selectedIndex;
-  const revealChanged = state.mode === "quiz" && !state.quizAnswered;
   state.selectedIndex = nextIndex;
-  state.quizAnswered = state.mode === "quiz";
-  if (changed || revealChanged) render();
-  if (submitQuizAnswer && state.mode === "quiz") submitPitchAnswer(state.selectedIndex);
-}
-
-function setFeedback(message, className) {
-  feedback.textContent = message;
-  feedback.className = `feedback ${className || ""}`;
-}
-
-function saveScore() {
-  try {
-    window.sessionStorage.setItem("pianoScore", state.score);
-    window.sessionStorage.setItem("pianoAttempts", state.attempts);
-  } catch {
-    // Direct file pages may disable storage; the in-memory session still works.
+  if (changed) {
+    render();
+    if (playSound) playPitch(nextIndex);
   }
-}
-
-function recordAnswer(correct) {
-  if (state.quizLocked) return;
-  state.attempts += 1;
-  if (correct) {
-    // Synchronize every visual element with the quiz target immediately:
-    // note, key highlight, slider knob, both arrows, and the large label.
-    updateSelection(state.quizTargetIndex);
-    state.score += 1;
-    state.quizLocked = true;
-    setFeedback("Correct! ⭐", "correct");
-  } else {
-    setFeedback("Try again", "try-again");
-  }
-  saveScore();
-  render();
-}
-
-function submitPitchAnswer(index) {
-  recordAnswer(index === state.quizTargetIndex);
-}
-
-function submitLetterAnswer(letter) {
-  state.quizAnswered = true;
-  recordAnswer(letter === pitches[state.quizTargetIndex].letter);
-}
-
-function newQuestion() {
-  const low = state.difficulty === "easy" ? 10 : 0;  // F3
-  const high = state.difficulty === "easy" ? 25 : 28; // G5
-  let next;
-  do next = low + Math.floor(Math.random() * (high - low + 1));
-  while (next === state.quizTargetIndex && high > low);
-  state.quizTargetIndex = next;
-  state.quizAnswered = false;
-  state.quizLocked = false;
-  setFeedback("", "");
-  render();
 }
 
 function pointerToNaturalIndex(event) {
@@ -375,18 +474,34 @@ svg.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     return;
   }
-  if (event.target.classList.contains("staff-note-hit") && state.mode === "study") {
+  if (event.target.classList.contains("staff-note-hit")) {
     state.dragSource = "staff";
+    state.dragStartIndex = state.selectedIndex;
+    state.dragMoved = false;
     svg.setPointerCapture(event.pointerId);
-    updateSelection(pointerToNaturalIndex(event));
+    // Keep the current pitch on pointerdown. A release without changing staff
+    // position is a tap and force-replays this note; pointermove still drags it.
     render();
+    event.preventDefault();
+    return;
+  }
+  if (event.target.classList.contains("staff-click-zone")) {
+    state.dragSource = "staff-zone";
+    state.dragStartIndex = state.selectedIndex;
+    state.dragMoved = false;
+    svg.setPointerCapture(event.pointerId);
+    const noteIndex = pointerToNaturalIndex(event);
+    updateSelection(noteIndex, { playSound: false });
+    playPitch(noteIndex, true);
     event.preventDefault();
     return;
   }
   if (event.target.classList.contains("white-key")) {
     state.dragSource = "keyboard";
     svg.setPointerCapture(event.pointerId);
-    updateSelection(Number(event.target.dataset.index));
+    const noteIndex = Number(event.target.dataset.index);
+    updateSelection(noteIndex, { playSound: false });
+    playPitch(noteIndex, true);
     event.preventDefault();
   }
 });
@@ -394,20 +509,29 @@ svg.addEventListener("pointerdown", (event) => {
 svg.addEventListener("pointermove", (event) => {
   if (!state.dragSource) return;
   const events = event.getCoalescedEvents ? event.getCoalescedEvents() : [event];
-  updateSelection(pointerToNaturalIndex(events[events.length - 1]));
+  const nextIndex = pointerToNaturalIndex(events[events.length - 1]);
+  if (state.dragSource === "staff" && nextIndex !== state.dragStartIndex) {
+    state.dragMoved = true;
+  }
+  updateSelection(nextIndex);
   event.preventDefault();
 });
 
 function finishDrag(event) {
   if (!state.dragSource) return;
   const completedSource = state.dragSource;
+  const shouldReplayStaffNote = event.type === "pointerup"
+    && completedSource === "staff"
+    && !state.dragMoved;
   state.dragSource = null;
+  state.dragStartIndex = null;
+  state.dragMoved = false;
   if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
-  if (state.mode === "quiz" && (completedSource === "slider" || completedSource === "keyboard")) {
-    submitPitchAnswer(state.selectedIndex);
-  } else {
-    render();
+  if (shouldReplayStaffNote) {
+    updateSelection(state.selectedIndex, { playSound: false });
+    playPitch(state.selectedIndex, true);
   }
+  render();
 }
 
 svg.addEventListener("pointerup", finishDrag);
@@ -415,12 +539,14 @@ svg.addEventListener("pointercancel", finishDrag);
 
 svg.addEventListener("keydown", (event) => {
   if (event.target.classList.contains("white-key") && (event.key === "Enter" || event.key === " ")) {
-    updateSelection(Number(event.target.dataset.index), { submitQuizAnswer: state.mode === "quiz" });
+    const noteIndex = Number(event.target.dataset.index);
+    updateSelection(noteIndex, { playSound: false });
+    playPitch(noteIndex, true);
     event.preventDefault();
   }
   if (event.target.classList.contains("slider-hit") && ["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)) {
     const delta = ["ArrowUp", "ArrowRight"].includes(event.key) ? 1 : -1;
-    updateSelection(state.selectedIndex + delta, { submitQuizAnswer: state.mode === "quiz" });
+    updateSelection(state.selectedIndex + delta);
     event.preventDefault();
   }
   if (event.target.classList.contains("staff-note-hit") && ["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)) {
@@ -430,51 +556,66 @@ svg.addEventListener("keydown", (event) => {
   }
 });
 
-function setMode(mode) {
-  state.mode = mode;
-  state.quizAnswered = false;
-  state.quizLocked = false;
-  document.getElementById("studyMode").classList.toggle("active", mode === "study");
-  document.getElementById("quizMode").classList.toggle("active", mode === "quiz");
-  document.getElementById("studyMode").setAttribute("aria-pressed", mode === "study");
-  document.getElementById("quizMode").setAttribute("aria-pressed", mode === "quiz");
-  document.getElementById("difficultyGroup").classList.toggle("hidden", mode !== "quiz");
-  document.getElementById("quizPanel").classList.toggle("hidden", mode !== "quiz");
-  setFeedback("", "");
-  if (mode === "quiz") newQuestion(); else render();
-}
-
-function setDifficulty(difficulty) {
-  state.difficulty = difficulty;
-  for (const name of ["easy", "hard"]) {
-    const button = document.getElementById(`${name}Mode`);
-    button.classList.toggle("active", difficulty === name);
-    button.setAttribute("aria-pressed", difficulty === name);
+soundToggle.addEventListener("click", async () => {
+  if (state.soundEnabled) {
+    state.soundEnabled = false;
+    soundToggle.setAttribute("aria-pressed", "false");
+    soundToggle.textContent = "🔇 Sound Off";
+    stopCurrentAudio();
+    setSoundStatus("Sound Off");
+    console.log("[Audio] Sound disabled");
+    return;
   }
-  newQuestion();
-}
 
-document.getElementById("studyMode").addEventListener("click", () => setMode("study"));
-document.getElementById("quizMode").addEventListener("click", () => setMode("quiz"));
-document.getElementById("easyMode").addEventListener("click", () => setDifficulty("easy"));
-document.getElementById("hardMode").addEventListener("click", () => setDifficulty("hard"));
-document.getElementById("nextQuestion").addEventListener("click", newQuestion);
-document.getElementById("resetScore").addEventListener("click", () => {
-  state.score = 0;
-  state.attempts = 0;
-  saveScore();
-  setFeedback("", "");
-  render();
+  state.soundEnabled = true;
+  soundToggle.setAttribute("aria-pressed", "true");
+  soundToggle.textContent = "🔊 Sound On";
+  setSoundStatus("Loading sound…");
+
+  try {
+    ensureAudioContext();
+    const preloadPromise = preloadAudioBuffers();
+    await Promise.race([
+      audioContext.resume(),
+      new Promise((_, reject) => window.setTimeout(
+        () => reject(new Error("Audio unlock timed out")),
+        AUDIO_UNLOCK_TIMEOUT_MS,
+      )),
+    ]);
+    if (audioContext.state !== "running") throw new Error("Audio context is not running");
+    console.log("[Audio] Sound enabled and audio context unlocked");
+
+    const failures = await preloadPromise;
+    if (!state.soundEnabled) return;
+    console.log(`[Audio] Preloaded ${audioBuffers.size} note files`);
+    if (failures.length) setSoundStatus(failures[0], true);
+    else setSoundStatus("Sound On");
+
+    // Confirm sound using the note already shown by the staff, key, and slider.
+    // Middle C is only a defensive fallback if selection state is unavailable.
+    const currentNoteIndex = Number.isInteger(state.selectedIndex)
+      ? state.selectedIndex
+      : byName.C4.index;
+    playPitch(currentNoteIndex, true);
+  } catch (error) {
+    state.soundEnabled = false;
+    soundToggle.setAttribute("aria-pressed", "false");
+    soundToggle.textContent = "🔇 Sound Off";
+    setSoundStatus("Browser blocked audio — tap Sound On again", true);
+    console.warn("[Audio] Initial Sound On unlock failed", error);
+  }
 });
 
-for (const letter of LETTERS) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "note-answer";
-  button.textContent = letter;
-  button.setAttribute("aria-label", `Answer ${letter}`);
-  button.addEventListener("click", () => submitLetterAnswer(letter));
-  document.getElementById("noteAnswers").append(button);
-}
-
 render();
+
+// Fetch and decode every note immediately. The context remains suspended and
+// nothing can play until the student explicitly taps Sound On.
+setSoundStatus("Loading sounds...");
+preloadAudioBuffers().then((failures) => {
+  if (state.soundEnabled) return;
+  if (failures.length) setSoundStatus(failures[0], true);
+  else setSoundStatus("Sounds ready");
+}).catch((error) => {
+  console.warn("[Audio] Sound preload failed", error);
+  setSoundStatus("Sounds failed to load", true);
+});

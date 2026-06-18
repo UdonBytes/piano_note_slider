@@ -1,6 +1,6 @@
 # Piano Note Slider
 
-Piano Note Slider is an interactive piano-learning tool that shows the relationship between a vertical keyboard and the grand staff. It is a standalone static website built with HTML, CSS, JavaScript, and SVG.
+Piano Note Slider is an interactive piano/staff visualizer that shows the relationship between a vertical keyboard and the grand staff. It is a standalone static website built with HTML, CSS, JavaScript, and SVG.
 
 ## Features
 
@@ -8,8 +8,8 @@ Piano Note Slider is an interactive piano-learning tool that shows the relations
 - Clickable and vertically draggable piano keyboard
 - Draggable staff note
 - Natural notes only, from C2 through C6
-- Easy and Hard quiz modes with session scoring
-- Large, kid-friendly staff, keyboard, labels, and feedback
+- Optional local piano-note audio with a Sound On/Off control
+- Large, kid-friendly staff, keyboard, note label, and controls
 - Mouse, touch, stylus, and keyboard support
 
 ## Run locally
@@ -31,6 +31,26 @@ python -m http.server 8000
 Then open <http://localhost:8000>.
 
 Python is only used here as an optional local static-file server. The app itself has no Python or Streamlit dependency.
+
+## Note audio files
+
+Put one audio file for every natural note from C2 through C6 in the `audio/` folder. The bundled browser-ready files are named `C2.wav`, `D2.wav`, `E2.wav`, and so on through `C6.wav`; sharps and flats are not used.
+
+The extension is configured near the top of `script.js` using `AUDIO_EXTENSION`. To use MP3 files named `C2.mp3` through `C6.mp3`, change that constant from `"wav"` to `"mp3"`.
+
+Sound is off by default and begins only after the Sound On button is selected. Missing or unsupported files are skipped without interrupting the visualizer.
+
+### Audio cleanup
+
+Put the natural-note WAV files in `audio/`, then run:
+
+```sh
+python scripts/trim_audio_silence.py
+```
+
+The script uses only Python's standard library. On its first run, it copies the original WAV files to `audio_original/`, trims leading and trailing silence, adds small fades to prevent clicks, and overwrites the files in `audio/` with the same filenames. Later runs always rebuild from `audio_original/` rather than trimming an already-cleaned file. Existing backups are never overwritten.
+
+To rebuild only one note from its backup, pass its filename, for example: `python scripts/trim_audio_silence.py G5.wav`.
 
 ## Deployment
 

@@ -6,3 +6,9 @@ dist/
 build/
 __pycache__/
 *.pyc
+
+# Local source recordings and safety backups; deploy only active WAV samples.
+audio/*.aiff
+audio_original/
+audio_backup_current/
+audio_backup_current_*/
