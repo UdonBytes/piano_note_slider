@@ -1,0 +1,156 @@
+:root {
+  --paper: #fffdf5;
+  --ink: #121212;
+  --muted: #646464;
+  --highlight: #ffd84d;
+  --highlight-dark: #e0aa00;
+  --success: #16833a;
+  --try: #b33a2f;
+}
+
+@font-face {
+  font-family: "NotoMusicLocal";
+  src: url("./NotoMusic-Regular.ttf") format("truetype");
+  font-display: block;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: #f2f0e9;
+  font-family: ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
+}
+
+button, input { font: inherit; }
+
+.app-shell {
+  width: min(1180px, calc(100% - 24px));
+  margin: 0 auto;
+  padding: 18px 0 32px;
+}
+
+header { text-align: center; }
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 5vw, 4.25rem);
+  line-height: 1.05;
+}
+
+header p {
+  margin: 10px 0 16px;
+  font-size: clamp(1rem, 2.1vw, 1.4rem);
+  font-weight: 700;
+}
+
+.toolbar {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 6px;
+}
+
+.button-group {
+  display: inline-flex;
+  padding: 4px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: white;
+}
+
+button {
+  min-height: 48px;
+  padding: 8px 20px;
+  border: 3px solid var(--ink);
+  border-radius: 13px;
+  color: var(--ink);
+  background: white;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.button-group button { border: 0; border-radius: 10px; }
+button:hover, button:focus-visible { background: #fff3b5; outline: none; }
+button.active, button:active { background: var(--highlight); }
+button.secondary { background: white; }
+
+.status-panel {
+  height: 105px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.selected-label {
+  min-height: 68px;
+  font-size: clamp(2.8rem, 7vw, 5.3rem);
+  font-weight: 1000;
+  line-height: .95;
+}
+
+.range-label { margin-top: 7px; color: var(--muted); font-weight: 800; }
+
+.board-frame {
+  width: 100%;
+  aspect-ratio: 1000 / 720;
+  min-height: 440px;
+  overflow: hidden;
+  border: 5px solid var(--ink);
+  border-radius: 22px;
+  background: var(--paper);
+  box-shadow: 8px 8px 0 var(--ink);
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+#musicBoard { width: 100%; height: 100%; display: block; user-select: none; }
+.white-key, .slider-hit { cursor: pointer; }
+.white-key:focus-visible { stroke: var(--try); stroke-width: 5; outline: none; }
+.slider-thumb { filter: drop-shadow(2px 3px 0 rgba(0,0,0,.25)); will-change: transform; }
+.staff-note-hit { cursor: grab; touch-action: none; }
+.staff-note-hit:active { cursor: grabbing; }
+.staff-note.dragging { stroke: var(--highlight); stroke-width: 7; }
+
+.quiz-panel {
+  min-height: 205px;
+  margin-top: 20px;
+  padding: 14px;
+  border: 4px solid var(--ink);
+  border-radius: 18px;
+  background: var(--paper);
+}
+
+.answer-prompt { margin: 0 0 9px; text-align: center; font-size: 1.2rem; font-weight: 900; }
+.note-answers { display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px; }
+.note-answer { min-width: 0; padding: 8px; font-size: clamp(1.35rem, 3vw, 2rem); }
+
+.feedback {
+  height: 58px;
+  display: grid;
+  place-items: center;
+  font-size: clamp(1.65rem, 4vw, 2.6rem);
+  font-weight: 1000;
+}
+.feedback.correct { color: var(--success); }
+.feedback.try-again { color: var(--try); }
+
+.score-row { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.score-row strong { min-width: 160px; font-size: 1.35rem; }
+
+footer { padding: 24px 8px 0; text-align: center; color: var(--muted); font-weight: 800; }
+.hidden { display: none !important; }
+
+@media (max-width: 720px) {
+  .app-shell { width: min(100% - 12px, 1180px); padding-top: 10px; }
+  .toolbar { gap: 8px 12px; }
+  .status-panel { height: 88px; }
+  .selected-label { min-height: 54px; }
+  .board-frame { min-height: 340px; border-width: 4px; box-shadow: 5px 5px 0 var(--ink); }
+  .note-answers { grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .note-answer { min-height: 52px; padding: 5px; }
+}

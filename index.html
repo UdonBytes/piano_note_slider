@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fffdf5">
+  <title>Piano Note Slider</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header>
+      <h1>🎹 Piano Note Slider</h1>
+      <p>Move up the piano and watch the note climb the staff!</p>
+    </header>
+
+    <section class="toolbar" aria-label="Learning controls">
+      <div class="button-group" aria-label="Activity mode">
+        <button id="studyMode" class="mode-button active" type="button" aria-pressed="true">Explore</button>
+        <button id="quizMode" class="mode-button" type="button" aria-pressed="false">Quiz</button>
+      </div>
+      <div id="difficultyGroup" class="button-group hidden" aria-label="Quiz difficulty">
+        <button id="easyMode" class="difficulty-button active" type="button" aria-pressed="true">Easy</button>
+        <button id="hardMode" class="difficulty-button" type="button" aria-pressed="false">Hard</button>
+      </div>
+    </section>
+
+    <section class="status-panel">
+      <div id="selectedLabel" class="selected-label">Middle C</div>
+      <div id="rangeLabel" class="range-label">29 natural notes · Low C to High C</div>
+    </section>
+
+    <section class="board-frame" aria-label="Interactive piano and grand staff">
+      <svg id="musicBoard" viewBox="0 0 1000 720" role="img" aria-labelledby="boardTitle boardDescription">
+        <title id="boardTitle">Grand staff aligned with a vertical piano keyboard</title>
+        <desc id="boardDescription">Drag the vertical slider or tap a white piano key to select a natural note.</desc>
+      </svg>
+    </section>
+
+    <section id="quizPanel" class="quiz-panel hidden" aria-label="Quiz answers">
+      <p class="answer-prompt">Or choose the note name:</p>
+      <div id="noteAnswers" class="note-answers"></div>
+      <div id="feedback" class="feedback" aria-live="polite"></div>
+      <div class="score-row">
+        <strong id="score">Score: 0 / 0</strong>
+        <button id="nextQuestion" type="button">Next note</button>
+        <button id="resetScore" class="secondary" type="button">Reset score</button>
+      </div>
+    </section>
+
+    <footer>Natural notes only: C, D, E, F, G, A, and B.</footer>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
