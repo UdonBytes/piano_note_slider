@@ -28,7 +28,6 @@ const SLIDER_X = 946;
 const AUDIO_DIRECTORY = "audio";
 const AUDIO_EXTENSION = "wav";
 const AUDIO_THROTTLE_MS = 65;
-const DRAG_END_REPLAY_GUARD_MS = 200;
 const AUDIO_UNLOCK_TIMEOUT_MS = 1500;
 const AUDIO_ENVELOPE_MS = 8;
 
@@ -76,8 +75,6 @@ const byName = Object.fromEntries(pitches.map((pitch) => [pitch.name, pitch]));
 const state = {
   selectedIndex: 14,
   dragSource: null,
-  dragStartIndex: null,
-  dragMoved: false,
   soundEnabled: false,
 };
 
@@ -92,8 +89,6 @@ let activeAudioSource = null;
 let lastAudioStart = 0;
 let audioSelectionVersion = 0;
 let pendingAudioTimer = null;
-let lastSoundPlayedNoteIndex = -1;
-let lastSoundPlayedAt = 0;
 
 function audioPathForPitch(pitch) {
   return `${AUDIO_DIRECTORY}/${pitch.name}.${AUDIO_EXTENSION}`;
@@ -192,8 +187,6 @@ function playPitch(index, options = {}) {
       source.start(startTime);
       activeAudioSource = { source, gain };
       lastAudioStart = performance.now();
-      lastSoundPlayedNoteIndex = index;
-      lastSoundPlayedAt = lastAudioStart;
       if (pitches[index].name === "G5") {
         console.log(`[Audio debug] Playing G5 from ${audioPathForPitch(pitches[index])}; cached duration ${buffer.duration.toFixed(3)}s`);
       }
@@ -499,9 +492,8 @@ function shouldPlayDragNote(noteIndex) {
   return noteIndex !== state.selectedIndex;
 }
 
-function wasNotePlayedRecently(noteIndex) {
-  return lastSoundPlayedNoteIndex === noteIndex
-    && performance.now() - lastSoundPlayedAt < DRAG_END_REPLAY_GUARD_MS;
+function beginDrag(source) {
+  state.dragSource = source;
 }
 
 function pointerToNaturalIndex(event) {
@@ -514,29 +506,29 @@ function pointerToNaturalIndex(event) {
 
 svg.addEventListener("pointerdown", (event) => {
   if (event.target.classList.contains("slider-hit")) {
-    state.dragSource = "slider";
-    state.dragStartIndex = state.selectedIndex;
-    state.dragMoved = false;
+    beginDrag("slider");
     svg.setPointerCapture(event.pointerId);
     updateSelection(pointerToNaturalIndex(event));
     event.preventDefault();
     return;
   }
   if (event.target.classList.contains("staff-note-hit")) {
-    state.dragSource = "staff";
-    state.dragStartIndex = state.selectedIndex;
-    state.dragMoved = false;
+    beginDrag("staff");
     svg.setPointerCapture(event.pointerId);
-    // Keep the current pitch on pointerdown. A release without changing staff
-    // position is a tap and force-replays this note; pointermove still drags it.
+    // Replay an intentional staff-note press immediately. Pointerup only ends
+    // the drag and never produces audio.
+    updateSelection(state.selectedIndex, { playSound: false });
+    playPitch(state.selectedIndex, {
+      forceReplay: true,
+      bypassThrottle: true,
+      selectionToken: audioSelectionVersion,
+    });
     render();
     event.preventDefault();
     return;
   }
   if (event.target.classList.contains("staff-click-zone")) {
-    state.dragSource = "staff-zone";
-    state.dragStartIndex = state.selectedIndex;
-    state.dragMoved = false;
+    beginDrag("staff-zone");
     svg.setPointerCapture(event.pointerId);
     const noteIndex = pointerToNaturalIndex(event);
     updateSelection(noteIndex, { playSound: false });
@@ -549,9 +541,7 @@ svg.addEventListener("pointerdown", (event) => {
     return;
   }
   if (event.target.classList.contains("white-key")) {
-    state.dragSource = "keyboard";
-    state.dragStartIndex = state.selectedIndex;
-    state.dragMoved = false;
+    beginDrag("keyboard");
     svg.setPointerCapture(event.pointerId);
     const noteIndex = Number(event.target.dataset.index);
     updateSelection(noteIndex, { playSound: false });
@@ -572,7 +562,6 @@ svg.addEventListener("pointermove", (event) => {
     : event;
   const nextIndex = pointerToNaturalIndex(latestEvent);
   if (shouldPlayDragNote(nextIndex)) {
-    state.dragMoved = true;
     updateSelection(nextIndex);
   }
   event.preventDefault();
@@ -580,28 +569,9 @@ svg.addEventListener("pointermove", (event) => {
 
 function finishDrag(event) {
   if (!state.dragSource) return;
-  const completedSource = state.dragSource;
-  const wasDragged = state.dragMoved;
-  const intentionalStaffTap = completedSource === "staff" && !wasDragged;
-  const shouldForceFinalNote = wasDragged
-    || completedSource === "slider"
-    || completedSource === "staff";
+  cancelPendingAudio();
   state.dragSource = null;
-  state.dragStartIndex = null;
-  state.dragMoved = false;
   if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
-  if (shouldForceFinalNote) {
-    const skipRecentReplay = !intentionalStaffTap
-      && wasNotePlayedRecently(state.selectedIndex);
-    updateSelection(state.selectedIndex, { playSound: false });
-    if (!skipRecentReplay) {
-      playPitch(state.selectedIndex, {
-        forceReplay: true,
-        bypassThrottle: true,
-        selectionToken: audioSelectionVersion,
-      });
-    }
-  }
   render();
 }
 
