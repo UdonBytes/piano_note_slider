@@ -28,6 +28,7 @@ const SLIDER_X = 946;
 const AUDIO_DIRECTORY = "audio";
 const AUDIO_EXTENSION = "wav";
 const AUDIO_THROTTLE_MS = 100;
+const DRAG_IDLE_PLAY_MS = 175;
 const AUDIO_UNLOCK_TIMEOUT_MS = 1500;
 const AUDIO_ENVELOPE_MS = 8;
 
@@ -89,6 +90,10 @@ let audioContext = null;
 let audioPreloadPromise = null;
 let activeAudioSource = null;
 let lastAudioStart = 0;
+let audioSelectionVersion = 0;
+let pendingAudioTimer = null;
+let dragIdleTimer = null;
+let lastPlayedSelectionVersion = -1;
 
 function audioPathForPitch(pitch) {
   return `${AUDIO_DIRECTORY}/${pitch.name}.${AUDIO_EXTENSION}`;
@@ -107,7 +112,42 @@ function ensureAudioContext() {
   return audioContext;
 }
 
+function cancelPendingAudio() {
+  if (pendingAudioTimer !== null) {
+    window.clearTimeout(pendingAudioTimer);
+    pendingAudioTimer = null;
+  }
+}
+
+function cancelDragIdlePlayback() {
+  if (dragIdleTimer !== null) {
+    window.clearTimeout(dragIdleTimer);
+    dragIdleTimer = null;
+  }
+}
+
+function scheduleDragIdlePlayback() {
+  cancelDragIdlePlayback();
+  if (!state.dragSource || !state.soundEnabled) return;
+
+  const selectionToken = audioSelectionVersion;
+  dragIdleTimer = window.setTimeout(() => {
+    dragIdleTimer = null;
+    if (!state.dragSource || selectionToken !== audioSelectionVersion) return;
+    if (lastPlayedSelectionVersion === selectionToken) return;
+
+    // Read selectedIndex at firing time so a paused drag can only play the
+    // pitch currently shown by the note, key, slider, and arrows.
+    playPitch(state.selectedIndex, {
+      forceReplay: true,
+      bypassThrottle: true,
+      selectionToken,
+    });
+  }, DRAG_IDLE_PLAY_MS);
+}
+
 function stopCurrentAudio() {
+  cancelPendingAudio();
   if (activeAudioSource) {
     const { source, gain } = activeAudioSource;
     try {
@@ -147,38 +187,59 @@ function preloadAudioBuffers() {
   return audioPreloadPromise;
 }
 
-function playPitch(index, playImmediately = false) {
+function playPitch(index, options = {}) {
+  const {
+    forceReplay = false,
+    bypassThrottle = false,
+    selectionToken = audioSelectionVersion,
+  } = options;
   if (!state.soundEnabled || !audioContext) return;
   const buffer = audioBuffers.get(index);
   if (!buffer) return; // Preloading is still underway, or this file failed.
+  if (selectionToken !== audioSelectionVersion) return;
 
   const now = performance.now();
-  if (!playImmediately && now - lastAudioStart < AUDIO_THROTTLE_MS) return;
+  const playLatest = () => {
+    pendingAudioTimer = null;
+    if (!state.soundEnabled || selectionToken !== audioSelectionVersion) return;
 
-  try {
-    stopCurrentAudio();
-    const source = audioContext.createBufferSource();
-    const gain = audioContext.createGain();
-    const startTime = audioContext.currentTime;
-    source.buffer = buffer;
-    gain.gain.setValueAtTime(0, startTime);
-    gain.gain.linearRampToValueAtTime(1, startTime + AUDIO_ENVELOPE_MS / 1000);
-    source.connect(gain);
-    gain.connect(audioContext.destination);
-    source.addEventListener("ended", () => {
-      if (activeAudioSource?.source === source) activeAudioSource = null;
-    }, { once: true });
-    source.start(startTime);
-    activeAudioSource = { source, gain };
-    lastAudioStart = now;
-    if (pitches[index].name === "G5") {
-      console.log(`[Audio debug] Playing G5 from ${audioPathForPitch(pitches[index])}; cached duration ${buffer.duration.toFixed(3)}s`);
+    try {
+      stopCurrentAudio();
+      const source = audioContext.createBufferSource();
+      const gain = audioContext.createGain();
+      const startTime = audioContext.currentTime;
+      source.buffer = buffer;
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(1, startTime + AUDIO_ENVELOPE_MS / 1000);
+      source.connect(gain);
+      gain.connect(audioContext.destination);
+      source.addEventListener("ended", () => {
+        if (activeAudioSource?.source === source) activeAudioSource = null;
+      }, { once: true });
+      source.start(startTime);
+      activeAudioSource = { source, gain };
+      lastAudioStart = performance.now();
+      lastPlayedSelectionVersion = selectionToken;
+      if (pitches[index].name === "G5") {
+        console.log(`[Audio debug] Playing G5 from ${audioPathForPitch(pitches[index])}; cached duration ${buffer.duration.toFixed(3)}s`);
+      }
+    } catch (error) {
+      const path = audioPathForPitch(pitches[index]);
+      console.warn(`Audio file missing or failed to load: ${path}`, error);
+      setSoundStatus(`Audio file missing or failed to load: ${path}`, true);
     }
-  } catch (error) {
-    const path = audioPathForPitch(pitches[index]);
-    console.warn(`Audio file missing or failed to load: ${path}`, error);
-    setSoundStatus(`Audio file missing or failed to load: ${path}`, true);
+  };
+
+  cancelPendingAudio();
+  const elapsed = now - lastAudioStart;
+  if (forceReplay || bypassThrottle || elapsed >= AUDIO_THROTTLE_MS) {
+    playLatest();
+    return;
   }
+
+  // Keep one trailing request only. A newer selection cancels this timer and
+  // invalidates its token, so stale notes can never fire after the visual moves.
+  pendingAudioTimer = window.setTimeout(playLatest, AUDIO_THROTTLE_MS - elapsed);
 }
 
 function playRawDebugNote(noteName) {
@@ -451,10 +512,13 @@ function updateSelection(noteIndex, options = {}) {
   const { playSound = true } = options;
   const nextIndex = Math.max(0, Math.min(28, noteIndex));
   const changed = nextIndex !== state.selectedIndex;
+  audioSelectionVersion += 1;
+  cancelPendingAudio();
+  cancelDragIdlePlayback();
   state.selectedIndex = nextIndex;
   if (changed) {
     render();
-    if (playSound) playPitch(nextIndex);
+    if (playSound) playPitch(nextIndex, { selectionToken: audioSelectionVersion });
   }
 }
 
@@ -469,6 +533,8 @@ function pointerToNaturalIndex(event) {
 svg.addEventListener("pointerdown", (event) => {
   if (event.target.classList.contains("slider-hit")) {
     state.dragSource = "slider";
+    state.dragStartIndex = state.selectedIndex;
+    state.dragMoved = false;
     svg.setPointerCapture(event.pointerId);
     updateSelection(pointerToNaturalIndex(event));
     event.preventDefault();
@@ -492,44 +558,61 @@ svg.addEventListener("pointerdown", (event) => {
     svg.setPointerCapture(event.pointerId);
     const noteIndex = pointerToNaturalIndex(event);
     updateSelection(noteIndex, { playSound: false });
-    playPitch(noteIndex, true);
+    playPitch(noteIndex, {
+      forceReplay: true,
+      bypassThrottle: true,
+      selectionToken: audioSelectionVersion,
+    });
     event.preventDefault();
     return;
   }
   if (event.target.classList.contains("white-key")) {
     state.dragSource = "keyboard";
+    state.dragStartIndex = state.selectedIndex;
+    state.dragMoved = false;
     svg.setPointerCapture(event.pointerId);
     const noteIndex = Number(event.target.dataset.index);
     updateSelection(noteIndex, { playSound: false });
-    playPitch(noteIndex, true);
+    playPitch(noteIndex, {
+      forceReplay: true,
+      bypassThrottle: true,
+      selectionToken: audioSelectionVersion,
+    });
     event.preventDefault();
   }
 });
 
 svg.addEventListener("pointermove", (event) => {
   if (!state.dragSource) return;
-  const events = event.getCoalescedEvents ? event.getCoalescedEvents() : [event];
-  const nextIndex = pointerToNaturalIndex(events[events.length - 1]);
-  if (state.dragSource === "staff" && nextIndex !== state.dragStartIndex) {
-    state.dragMoved = true;
-  }
+  const coalescedEvents = event.getCoalescedEvents ? event.getCoalescedEvents() : [];
+  const latestEvent = coalescedEvents.length
+    ? coalescedEvents[coalescedEvents.length - 1]
+    : event;
+  const nextIndex = pointerToNaturalIndex(latestEvent);
+  if (nextIndex !== state.selectedIndex) state.dragMoved = true;
   updateSelection(nextIndex);
+  scheduleDragIdlePlayback();
   event.preventDefault();
 });
 
 function finishDrag(event) {
   if (!state.dragSource) return;
+  cancelDragIdlePlayback();
   const completedSource = state.dragSource;
-  const shouldReplayStaffNote = event.type === "pointerup"
-    && completedSource === "staff"
-    && !state.dragMoved;
+  const shouldForceFinalNote = state.dragMoved
+    || completedSource === "slider"
+    || completedSource === "staff";
   state.dragSource = null;
   state.dragStartIndex = null;
   state.dragMoved = false;
   if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
-  if (shouldReplayStaffNote) {
+  if (shouldForceFinalNote) {
     updateSelection(state.selectedIndex, { playSound: false });
-    playPitch(state.selectedIndex, true);
+    playPitch(state.selectedIndex, {
+      forceReplay: true,
+      bypassThrottle: true,
+      selectionToken: audioSelectionVersion,
+    });
   }
   render();
 }
@@ -541,7 +624,11 @@ svg.addEventListener("keydown", (event) => {
   if (event.target.classList.contains("white-key") && (event.key === "Enter" || event.key === " ")) {
     const noteIndex = Number(event.target.dataset.index);
     updateSelection(noteIndex, { playSound: false });
-    playPitch(noteIndex, true);
+    playPitch(noteIndex, {
+      forceReplay: true,
+      bypassThrottle: true,
+      selectionToken: audioSelectionVersion,
+    });
     event.preventDefault();
   }
   if (event.target.classList.contains("slider-hit") && ["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)) {
@@ -561,6 +648,7 @@ soundToggle.addEventListener("click", async () => {
     state.soundEnabled = false;
     soundToggle.setAttribute("aria-pressed", "false");
     soundToggle.textContent = "🔇 Sound Off";
+    cancelDragIdlePlayback();
     stopCurrentAudio();
     setSoundStatus("Sound Off");
     console.log("[Audio] Sound disabled");
@@ -596,7 +684,11 @@ soundToggle.addEventListener("click", async () => {
     const currentNoteIndex = Number.isInteger(state.selectedIndex)
       ? state.selectedIndex
       : byName.C4.index;
-    playPitch(currentNoteIndex, true);
+    playPitch(currentNoteIndex, {
+      forceReplay: true,
+      bypassThrottle: true,
+      selectionToken: audioSelectionVersion,
+    });
   } catch (error) {
     state.soundEnabled = false;
     soundToggle.setAttribute("aria-pressed", "false");
