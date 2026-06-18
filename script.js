@@ -89,14 +89,25 @@ let activeAudioSource = null;
 let lastAudioStart = 0;
 let audioSelectionVersion = 0;
 let pendingAudioTimer = null;
+let soundStatusHideTimer = null;
 
 function audioPathForPitch(pitch) {
   return `${AUDIO_DIRECTORY}/${pitch.name}.${AUDIO_EXTENSION}`;
 }
 
-function setSoundStatus(message, isError = false) {
+function setSoundStatus(message, isError = false, autoHideMs = 0) {
+  if (soundStatusHideTimer !== null) {
+    window.clearTimeout(soundStatusHideTimer);
+    soundStatusHideTimer = null;
+  }
   soundStatus.textContent = message;
   soundStatus.classList.toggle("error", isError);
+  if (message && autoHideMs > 0) {
+    soundStatusHideTimer = window.setTimeout(() => {
+      soundStatus.textContent = "";
+      soundStatusHideTimer = null;
+    }, autoHideMs);
+  }
 }
 
 function ensureAudioContext() {
@@ -193,7 +204,7 @@ function playPitch(index, options = {}) {
     } catch (error) {
       const path = audioPathForPitch(pitches[index]);
       console.warn(`Audio file missing or failed to load: ${path}`, error);
-      setSoundStatus(`Audio file missing or failed to load: ${path}`, true);
+      setSoundStatus("Some sounds failed to load", true);
     }
   };
 
@@ -607,7 +618,7 @@ soundToggle.addEventListener("click", async () => {
     soundToggle.setAttribute("aria-pressed", "false");
     soundToggle.textContent = "🔇 Sound Off";
     stopCurrentAudio();
-    setSoundStatus("Sound Off");
+    setSoundStatus("");
     console.log("[Audio] Sound disabled");
     return;
   }
@@ -633,8 +644,8 @@ soundToggle.addEventListener("click", async () => {
     const failures = await preloadPromise;
     if (!state.soundEnabled) return;
     console.log(`[Audio] Preloaded ${audioBuffers.size} note files`);
-    if (failures.length) setSoundStatus(failures[0], true);
-    else setSoundStatus("Sound On");
+    if (failures.length) setSoundStatus("Some sounds failed to load", true);
+    else setSoundStatus("");
 
     // Confirm sound using the note already shown by the staff, key, and slider.
     // Middle C is only a defensive fallback if selection state is unavailable.
@@ -662,8 +673,8 @@ render();
 setSoundStatus("Loading sounds...");
 preloadAudioBuffers().then((failures) => {
   if (state.soundEnabled) return;
-  if (failures.length) setSoundStatus(failures[0], true);
-  else setSoundStatus("Sounds ready");
+  if (failures.length) setSoundStatus("Some sounds failed to load", true);
+  else setSoundStatus("Sounds ready", false, 1800);
 }).catch((error) => {
   console.warn("[Audio] Sound preload failed", error);
   setSoundStatus("Sounds failed to load", true);
