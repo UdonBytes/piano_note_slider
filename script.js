@@ -138,6 +138,9 @@ let activeAudioSource = null;
 let lastAudioStart = 0;
 let audioSelectionVersion = 0;
 let pendingAudioTimer = null;
+let lastDragSoundPlayedNoteIndex = null;
+let currentDragHasPlayedCurrentNote = false;
+let lastDragPointer = null;
 let soundStatusHideTimer = null;
 let lastGuidePressId = null;
 let lastGuidePressAt = 0;
@@ -249,6 +252,10 @@ function playPitch(index, options = {}) {
       source.start(startTime);
       activeAudioSource = { source, gain };
       lastAudioStart = performance.now();
+      if (state.dragSource && index === state.selectedIndex) {
+        lastDragSoundPlayedNoteIndex = index;
+        currentDragHasPlayedCurrentNote = true;
+      }
       if (pitches[index].name === "G5") {
         console.log(`[Audio debug] Playing G5 from ${audioPathForPitch(pitches[index])}; cached duration ${buffer.duration.toFixed(3)}s`);
       }
@@ -616,6 +623,7 @@ function updateSelection(noteIndex, options = {}) {
   cancelPendingAudio();
   state.selectedIndex = nextIndex;
   if (changed) {
+    if (state.dragSource) currentDragHasPlayedCurrentNote = false;
     render();
     if (playSound) playPitch(nextIndex, { selectionToken: audioSelectionVersion });
   }
@@ -625,16 +633,37 @@ function shouldPlayDragNote(noteIndex) {
   return noteIndex !== state.selectedIndex;
 }
 
-function beginDrag(source) {
+function beginDrag(source, event) {
   state.dragSource = source;
+  lastDragSoundPlayedNoteIndex = null;
+  currentDragHasPlayedCurrentNote = false;
+  const pointerEvent = latestPointerEvent(event);
+  lastDragPointer = { clientX: pointerEvent.clientX, clientY: pointerEvent.clientY };
 }
 
-function pointerToNaturalIndex(event) {
+function latestPointerEvent(event) {
+  const coalescedEvents = event.getCoalescedEvents ? event.getCoalescedEvents() : [];
+  const latestEvent = coalescedEvents.length
+    ? coalescedEvents[coalescedEvents.length - 1]
+    : event;
+  return latestEvent && Number.isFinite(latestEvent.clientX) && Number.isFinite(latestEvent.clientY)
+    ? latestEvent
+    : event;
+}
+
+function pointerToNaturalIndex(event, source = state.dragSource) {
   const point = svg.createSVGPoint();
   point.x = event.clientX;
   point.y = event.clientY;
   const local = point.matrixTransform(svg.getScreenCTM().inverse());
   const musicY = local.y - MUSIC_Y_OFFSET;
+
+  // The slider, staff positions, and white-key centers deliberately share the
+  // same vertical pitch grid. Keeping the source explicit makes release-time
+  // reconciliation use the correct interaction's final pointer coordinate.
+  if (!["slider", "staff", "staff-zone", "keyboard"].includes(source)) {
+    return state.selectedIndex;
+  }
   return Math.max(0, Math.min(28, Math.round((BOTTOM - musicY) / STEP - 0.5)));
 }
 
@@ -645,17 +674,17 @@ svg.addEventListener("pointerdown", (event) => {
     return;
   }
   if (event.target.classList.contains("slider-hit")) {
-    beginDrag("slider");
+    beginDrag("slider", event);
     svg.setPointerCapture(event.pointerId);
     updateSelection(pointerToNaturalIndex(event));
     event.preventDefault();
     return;
   }
   if (event.target.classList.contains("staff-note-hit")) {
-    beginDrag("staff");
+    beginDrag("staff", event);
     svg.setPointerCapture(event.pointerId);
-    // Replay an intentional staff-note press immediately. Pointerup only ends
-    // the drag and never produces audio.
+    // Replay an intentional staff-note press immediately. Release only adds a
+    // correction if a fast final landing did not already sound during the drag.
     updateSelection(state.selectedIndex, { playSound: false });
     playPitch(state.selectedIndex, {
       forceReplay: true,
@@ -667,7 +696,7 @@ svg.addEventListener("pointerdown", (event) => {
     return;
   }
   if (event.target.classList.contains("staff-click-zone")) {
-    beginDrag("staff-zone");
+    beginDrag("staff-zone", event);
     svg.setPointerCapture(event.pointerId);
     const noteIndex = pointerToNaturalIndex(event);
     updateSelection(noteIndex, { playSound: false });
@@ -680,7 +709,7 @@ svg.addEventListener("pointerdown", (event) => {
     return;
   }
   if (event.target.classList.contains("white-key")) {
-    beginDrag("keyboard");
+    beginDrag("keyboard", event);
     svg.setPointerCapture(event.pointerId);
     const noteIndex = Number(event.target.dataset.index);
     updateSelection(noteIndex, { playSound: false });
@@ -695,10 +724,8 @@ svg.addEventListener("pointerdown", (event) => {
 
 svg.addEventListener("pointermove", (event) => {
   if (!state.dragSource) return;
-  const coalescedEvents = event.getCoalescedEvents ? event.getCoalescedEvents() : [];
-  const latestEvent = coalescedEvents.length
-    ? coalescedEvents[coalescedEvents.length - 1]
-    : event;
+  const latestEvent = latestPointerEvent(event);
+  lastDragPointer = { clientX: latestEvent.clientX, clientY: latestEvent.clientY };
   const nextIndex = pointerToNaturalIndex(latestEvent);
   if (shouldPlayDragNote(nextIndex)) {
     updateSelection(nextIndex);
@@ -708,8 +735,31 @@ svg.addEventListener("pointermove", (event) => {
 
 function finishDrag(event) {
   if (!state.dragSource) return;
+
+  const dragSource = state.dragSource;
+  const finalPointerEvent = event.type === "pointercancel" && lastDragPointer
+    ? lastDragPointer
+    : latestPointerEvent(event);
+  const finalNoteIndex = pointerToNaturalIndex(finalPointerEvent, dragSource);
+
+  // Invalidate the trailing throttled request before reconciling the final
+  // pointer position. A fast fling can otherwise let an older note fire after
+  // the visual has already landed on its final pitch.
   cancelPendingAudio();
+  updateSelection(finalNoteIndex, { playSound: false });
+
+  const finalLandingAlreadyPlayed = currentDragHasPlayedCurrentNote
+    && lastDragSoundPlayedNoteIndex === finalNoteIndex;
+  if (state.soundEnabled && !finalLandingAlreadyPlayed) {
+    playPitch(finalNoteIndex, {
+      forceReplay: true,
+      bypassThrottle: true,
+      selectionToken: audioSelectionVersion,
+    });
+  }
+
   state.dragSource = null;
+  lastDragPointer = null;
   if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
   render();
 }
