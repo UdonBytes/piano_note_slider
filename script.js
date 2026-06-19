@@ -113,6 +113,8 @@ const state = {
   soundEnabled: false,
   lineNotesVisible: false,
   spaceNotesVisible: false,
+  noteNameHidden: false,
+  helpersHidden: false,
 };
 
 const svg = document.getElementById("musicBoard");
@@ -122,6 +124,8 @@ const soundStatus = document.getElementById("soundStatus");
 const lineNotesToggle = document.getElementById("lineNotesToggle");
 const spaceNotesToggle = document.getElementById("spaceNotesToggle");
 const resetGuideNotes = document.getElementById("resetGuideNotes");
+const hideNoteNameToggle = document.getElementById("hideNoteNameToggle");
+const hideHelpersToggle = document.getElementById("hideHelpersToggle");
 const hiddenGuideNoteIds = new Set();
 const audioBuffers = new Map();
 let audioContext = null;
@@ -555,13 +559,16 @@ function render() {
   drawGrandStaff(svg);
   drawGuideNotes(svg);
   drawStaffClickZone(svg);
-  drawArrow(svg, selectedPitch, selectedPitch);
+  if (!state.helpersHidden) drawArrow(svg, selectedPitch, selectedPitch);
   drawSelectedNote(svg, selectedPitch, true, state.dragSource === "staff");
-  drawKeyboard(svg, state.selectedIndex);
-  drawSliderToKeyArrow(svg, selectedPitch);
-  drawSlider(svg, state.selectedIndex);
+  if (!state.helpersHidden) {
+    drawKeyboard(svg, state.selectedIndex);
+    drawSliderToKeyArrow(svg, selectedPitch);
+    drawSlider(svg, state.selectedIndex);
+  }
 
   selectedLabel.textContent = selectedPitch.label;
+  selectedLabel.classList.toggle("is-hidden", state.noteNameHidden);
 }
 
 function syncGuideControls() {
@@ -570,6 +577,11 @@ function syncGuideControls() {
   spaceNotesToggle.setAttribute("aria-pressed", String(state.spaceNotesVisible));
   spaceNotesToggle.textContent = `Space Notes: ${state.spaceNotesVisible ? "On" : "Off"}`;
   resetGuideNotes.disabled = hiddenGuideNoteIds.size === 0;
+}
+
+function syncTestControls() {
+  hideNoteNameToggle.setAttribute("aria-pressed", String(state.noteNameHidden));
+  hideHelpersToggle.setAttribute("aria-pressed", String(state.helpersHidden));
 }
 
 function handleGuideNotePress(guideId) {
@@ -746,6 +758,18 @@ resetGuideNotes.addEventListener("click", () => {
   render();
 });
 
+hideNoteNameToggle.addEventListener("click", () => {
+  state.noteNameHidden = !state.noteNameHidden;
+  syncTestControls();
+  render();
+});
+
+hideHelpersToggle.addEventListener("click", () => {
+  state.helpersHidden = !state.helpersHidden;
+  syncTestControls();
+  render();
+});
+
 soundToggle.addEventListener("click", async () => {
   if (state.soundEnabled) {
     state.soundEnabled = false;
@@ -801,6 +825,7 @@ soundToggle.addEventListener("click", async () => {
 });
 
 syncGuideControls();
+syncTestControls();
 render();
 
 // Fetch and decode every note immediately. The context remains suspended and

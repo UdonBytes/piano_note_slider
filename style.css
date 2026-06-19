@@ -103,6 +103,31 @@ header p {
 .guide-button:disabled { cursor: default; opacity: .4; }
 .guide-button:disabled:hover { background: #fff; }
 
+.test-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.test-button {
+  min-height: 38px;
+  padding: 6px 13px;
+  border: 2px solid var(--ink);
+  border-radius: 11px;
+  color: var(--ink);
+  background: #fff;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.test-button:hover,
+.test-button:focus-visible { background: #fff3b5; outline: none; }
+.test-button[aria-pressed="true"] { background: var(--highlight); }
+
 .creator-credit {
   margin: 14px 0 8px;
   color: #9a9a9a;
@@ -125,6 +150,8 @@ header p {
   font-weight: 1000;
   line-height: .95;
 }
+
+.selected-label.is-hidden { visibility: hidden; }
 
 .board-frame {
   width: 100%;
