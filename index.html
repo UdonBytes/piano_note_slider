@@ -12,29 +12,26 @@
     <header>
       <h1>🎹 Piano Note Slider</h1>
       <p>Move up the piano and watch the note climb the staff!</p>
-      <div class="sound-control">
-        <button id="soundToggle" class="sound-toggle" type="button" aria-pressed="false">🔇 Sound Off</button>
-        <span id="soundStatus" class="sound-status" role="status" aria-live="polite">Loading sounds...</span>
-      </div>
-      <div class="guide-controls" role="group" aria-label="Guide note controls">
-        <button id="lineNotesToggle" class="guide-button" type="button" aria-pressed="false">Line Notes: Off</button>
-        <button id="spaceNotesToggle" class="guide-button" type="button" aria-pressed="false">Space Notes: Off</button>
-        <button id="resetGuideNotes" class="guide-button guide-reset" type="button" disabled>Reset Guide Notes</button>
-      </div>
-      <div class="test-controls">
-        <button id="testModeToggle" class="test-button" type="button" aria-pressed="false">Test Mode: Off</button>
-      </div>
     </header>
 
-    <section class="status-panel">
-      <div id="selectedLabel" class="selected-label">Middle C</div>
-    </section>
-
-    <section class="board-frame" aria-label="Interactive piano and grand staff">
-      <svg id="musicBoard" viewBox="0 0 1000 720" role="img" aria-labelledby="boardTitle boardDescription">
-        <title id="boardTitle">Grand staff aligned with a vertical piano keyboard</title>
-        <desc id="boardDescription">Drag the vertical slider or tap a white piano key to select a natural note.</desc>
-      </svg>
+    <section class="board-stage" aria-label="Interactive piano and grand staff">
+      <div class="board-frame">
+        <div class="guide-controls" role="group" aria-label="Guide note controls">
+          <button id="lineNotesToggle" class="guide-button" type="button" aria-pressed="false">Line Notes: Off</button>
+          <button id="spaceNotesToggle" class="guide-button" type="button" aria-pressed="false">Space Notes: Off</button>
+          <button id="resetGuideNotes" class="guide-button guide-reset" type="button" disabled>Reset</button>
+        </div>
+        <div class="sound-control">
+          <button id="soundToggle" class="sound-toggle" type="button" aria-pressed="false">🔇 Sound Off</button>
+          <span id="soundStatus" class="sound-status" role="status" aria-live="polite">Loading sounds...</span>
+        </div>
+        <div id="selectedLabel" class="selected-label" aria-live="polite">Middle C</div>
+        <button id="testModeToggle" class="test-button" type="button" aria-pressed="false">Test Mode: Off</button>
+        <svg id="musicBoard" viewBox="0 0 1000 825" role="img" aria-labelledby="boardTitle boardDescription">
+          <title id="boardTitle">Grand staff aligned with a vertical piano keyboard</title>
+          <desc id="boardDescription">Drag the vertical slider or tap a white piano key to select a natural note.</desc>
+        </svg>
+      </div>
     </section>
 
     <footer class="creator-credit">Created by Jane Hong (UdonBytes)</footer>

@@ -1,6 +1,8 @@
 "use strict";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const CANVAS_HEIGHT = 825;
+const MUSIC_Y_OFFSET = 80;
 const LETTERS = ["C", "D", "E", "F", "G", "A", "B"];
 const LANDMARK_LABELS = {
   C2: "Low C",
@@ -13,6 +15,7 @@ const BLACK_AFTER = new Set(["C", "D", "F", "G", "A"]);
 const TOP = 54;
 const BOTTOM = 676;
 const STEP = (BOTTOM - TOP) / 29;
+const STAFF_GROUP_X_OFFSET = 70;
 const NOTE_X = 400;
 const LEDGER_HALF_WIDTH = 54.9; // 10% shorter than the previous 61px half-width.
 const STAFF_CLICK_X_MIN = 355;
@@ -502,9 +505,9 @@ function drawArrow(parent, staffPitch, keyPitch) {
   defs.append(marker);
   parent.append(defs);
   parent.append(el("line", {
-    // Ledger lines end at x=461 and the notehead ends at x=438. Stopping at
-    // x=492 leaves a visible gap around both pieces of notation.
-    x1: KEY_X - 8, y1: pitchY(keyPitch), x2: 492, y2: pitchY(staffPitch),
+    // Follow the translated staff group while retaining the same clear gap
+    // between the arrowhead, notehead, and any ledger line.
+    x1: KEY_X - 8, y1: pitchY(keyPitch), x2: 492 + STAFF_GROUP_X_OFFSET, y2: pitchY(staffPitch),
     stroke: "#121212", "stroke-width": 5, "stroke-linecap": "round", "marker-end": "url(#arrowhead)",
     "pointer-events": "none",
   }));
@@ -552,18 +555,24 @@ function drawSliderToKeyArrow(parent, keyPitch) {
 
 function render() {
   svg.replaceChildren();
-  svg.append(el("rect", { width: 1000, height: 720, fill: "#fffdf5" }));
+  svg.append(el("rect", { width: 1000, height: CANVAS_HEIGHT, fill: "#fffdf5" }));
   const selectedPitch = pitches[state.selectedIndex];
-  drawGrandStaff(svg);
-  drawGuideNotes(svg);
-  drawStaffClickZone(svg);
-  if (!state.testModeEnabled) drawArrow(svg, selectedPitch, selectedPitch);
-  drawSelectedNote(svg, selectedPitch, true, state.dragSource === "staff");
+  const musicLayer = el("g", { transform: `translate(0 ${MUSIC_Y_OFFSET})` });
+  const staffGroup = el("g", { transform: `translate(${STAFF_GROUP_X_OFFSET} 0)` });
+  drawGrandStaff(staffGroup);
+  drawGuideNotes(staffGroup);
+  drawStaffClickZone(staffGroup);
+  musicLayer.append(staffGroup);
+  if (!state.testModeEnabled) drawArrow(musicLayer, selectedPitch, selectedPitch);
+  const noteGroup = el("g", { transform: `translate(${STAFF_GROUP_X_OFFSET} 0)` });
+  drawSelectedNote(noteGroup, selectedPitch, true, state.dragSource === "staff");
+  musicLayer.append(noteGroup);
   if (!state.testModeEnabled) {
-    drawKeyboard(svg, state.selectedIndex);
-    drawSliderToKeyArrow(svg, selectedPitch);
-    drawSlider(svg, state.selectedIndex);
+    drawKeyboard(musicLayer, state.selectedIndex);
+    drawSliderToKeyArrow(musicLayer, selectedPitch);
+    drawSlider(musicLayer, state.selectedIndex);
   }
+  svg.append(musicLayer);
 
   selectedLabel.textContent = selectedPitch.label;
   selectedLabel.classList.toggle("is-hidden", state.testModeEnabled);
@@ -622,7 +631,8 @@ function pointerToNaturalIndex(event) {
   point.x = event.clientX;
   point.y = event.clientY;
   const local = point.matrixTransform(svg.getScreenCTM().inverse());
-  return Math.max(0, Math.min(28, Math.round((BOTTOM - local.y) / STEP - 0.5)));
+  const musicY = local.y - MUSIC_Y_OFFSET;
+  return Math.max(0, Math.min(28, Math.round((BOTTOM - musicY) / STEP - 0.5)));
 }
 
 svg.addEventListener("pointerdown", (event) => {

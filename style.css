@@ -25,7 +25,7 @@ body {
 .app-shell {
   width: min(1180px, calc(100% - 24px));
   margin: 0 auto;
-  padding: 18px 0 32px;
+  padding: 18px 0 20px;
 }
 
 header { text-align: center; }
@@ -43,6 +43,10 @@ header p {
 }
 
 .sound-control {
+  position: absolute;
+  z-index: 4;
+  top: 10px;
+  right: 18px;
   display: inline-grid;
   justify-items: center;
   gap: 4px;
@@ -77,23 +81,32 @@ header p {
 .sound-status.error { color: var(--try); }
 
 .guide-controls {
+  position: absolute;
+  z-index: 4;
+  /* F5 is at 27.94% of the SVG height; align the stack's top edge to it. */
+  top: 27.94%;
+  left: 7px;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 7px;
 }
 
 .guide-button {
-  min-height: 38px;
-  padding: 6px 13px;
+  min-width: 44px;
+  height: 142px;
+  padding: 8px 5px;
   border: 2px solid var(--ink);
-  border-radius: 11px;
+  border-radius: 10px;
   color: var(--ink);
   background: #fff;
   font: inherit;
-  font-size: .82rem;
+  font-size: .72rem;
   font-weight: 800;
+  line-height: 1.05;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
   cursor: pointer;
 }
 
@@ -102,18 +115,15 @@ header p {
 .guide-button[aria-pressed="true"] { background: var(--highlight); }
 .guide-button:disabled { cursor: default; opacity: .4; }
 .guide-button:disabled:hover { background: #fff; }
-
-.test-controls {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 8px;
-}
+.guide-reset { height: 76px; }
 
 .test-button {
-  min-height: 38px;
-  padding: 6px 13px;
+  position: absolute;
+  z-index: 3;
+  top: 16px;
+  left: 18px;
+  min-height: 34px;
+  padding: 5px 11px;
   border: 2px solid var(--ink);
   border-radius: 11px;
   color: var(--ink);
@@ -137,25 +147,32 @@ header p {
   text-align: center;
 }
 
-.status-panel {
-  height: 105px;
-  display: grid;
-  place-content: center;
-  text-align: center;
-}
-
 .selected-label {
-  min-height: 68px;
-  font-size: clamp(2.8rem, 7vw, 5.3rem);
+  position: absolute;
+  z-index: 2;
+  top: 20px;
+  left: 50%;
+  min-width: 190px;
+  min-height: 54px;
+  font-size: clamp(2.25rem, 5vw, 4.4rem);
   font-weight: 1000;
   line-height: .95;
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .selected-label.is-hidden { visibility: hidden; }
 
-.board-frame {
+.board-stage {
   width: 100%;
-  aspect-ratio: 1000 / 720;
+  margin-top: 18px;
+}
+
+.board-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1000 / 825;
   min-height: 440px;
   overflow: hidden;
   border: 5px solid var(--ink);
@@ -179,7 +196,14 @@ header p {
 
 @media (max-width: 720px) {
   .app-shell { width: min(100% - 12px, 1180px); padding-top: 10px; }
-  .status-panel { height: 88px; }
-  .selected-label { min-height: 54px; }
+  .board-stage { margin-top: 12px; }
+  .guide-controls { top: 27.94%; left: 5px; gap: 5px; }
+  .guide-button { min-width: 36px; height: 112px; padding: 6px 3px; font-size: .62rem; }
+  .guide-reset { height: 62px; }
+  .selected-label { top: 13px; left: 50%; min-width: 96px; min-height: 38px; font-size: clamp(1.5rem, 6vw, 2.4rem); }
+  .test-button { top: 10px; left: 6px; min-height: 30px; padding: 4px 7px; font-size: .66rem; }
+  .sound-control { top: 9px; right: 8px; gap: 2px; }
+  .sound-toggle { min-height: 38px; padding: 5px 12px; font-size: .82rem; border-width: 2px; }
+  .sound-status { font-size: .66rem; }
   .board-frame { min-height: 340px; border-width: 4px; box-shadow: 5px 5px 0 var(--ink); }
 }
