@@ -9,6 +9,7 @@ Piano Note Slider is an interactive piano/staff visualizer that shows the relati
 - Draggable staff note
 - Natural notes only, from C2 through C6
 - Optional local piano-note audio with a Sound On/Off control
+- One-button Test Mode that hides the note name, keyboard, slider, arrows, and answer labels together
 - Large, kid-friendly staff, keyboard, note label, and controls
 - Mouse, touch, stylus, and keyboard support
 

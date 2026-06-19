@@ -113,8 +113,7 @@ const state = {
   soundEnabled: false,
   lineNotesVisible: false,
   spaceNotesVisible: false,
-  noteNameHidden: false,
-  helpersHidden: false,
+  testModeEnabled: false,
 };
 
 const svg = document.getElementById("musicBoard");
@@ -124,8 +123,7 @@ const soundStatus = document.getElementById("soundStatus");
 const lineNotesToggle = document.getElementById("lineNotesToggle");
 const spaceNotesToggle = document.getElementById("spaceNotesToggle");
 const resetGuideNotes = document.getElementById("resetGuideNotes");
-const hideNoteNameToggle = document.getElementById("hideNoteNameToggle");
-const hideHelpersToggle = document.getElementById("hideHelpersToggle");
+const testModeToggle = document.getElementById("testModeToggle");
 const hiddenGuideNoteIds = new Set();
 const audioBuffers = new Map();
 let audioContext = null;
@@ -559,16 +557,16 @@ function render() {
   drawGrandStaff(svg);
   drawGuideNotes(svg);
   drawStaffClickZone(svg);
-  if (!state.helpersHidden) drawArrow(svg, selectedPitch, selectedPitch);
+  if (!state.testModeEnabled) drawArrow(svg, selectedPitch, selectedPitch);
   drawSelectedNote(svg, selectedPitch, true, state.dragSource === "staff");
-  if (!state.helpersHidden) {
+  if (!state.testModeEnabled) {
     drawKeyboard(svg, state.selectedIndex);
     drawSliderToKeyArrow(svg, selectedPitch);
     drawSlider(svg, state.selectedIndex);
   }
 
   selectedLabel.textContent = selectedPitch.label;
-  selectedLabel.classList.toggle("is-hidden", state.noteNameHidden);
+  selectedLabel.classList.toggle("is-hidden", state.testModeEnabled);
 }
 
 function syncGuideControls() {
@@ -580,8 +578,8 @@ function syncGuideControls() {
 }
 
 function syncTestControls() {
-  hideNoteNameToggle.setAttribute("aria-pressed", String(state.noteNameHidden));
-  hideHelpersToggle.setAttribute("aria-pressed", String(state.helpersHidden));
+  testModeToggle.setAttribute("aria-pressed", String(state.testModeEnabled));
+  testModeToggle.textContent = `Test Mode: ${state.testModeEnabled ? "On" : "Off"}`;
 }
 
 function handleGuideNotePress(guideId) {
@@ -758,14 +756,8 @@ resetGuideNotes.addEventListener("click", () => {
   render();
 });
 
-hideNoteNameToggle.addEventListener("click", () => {
-  state.noteNameHidden = !state.noteNameHidden;
-  syncTestControls();
-  render();
-});
-
-hideHelpersToggle.addEventListener("click", () => {
-  state.helpersHidden = !state.helpersHidden;
+testModeToggle.addEventListener("click", () => {
+  state.testModeEnabled = !state.testModeEnabled;
   syncTestControls();
   render();
 });
