@@ -199,6 +199,11 @@ header p {
 /* Desktop frames are height-aware so the 825:1000 board never forces scroll. */
 @media (min-width: 901px) {
   :root { --frame-max-width: min(1180px, 95vh); }
+  .selected-label {
+    top: 12px;
+    min-height: 44px;
+    font-size: clamp(2.5rem, 5.5vh, 3.25rem);
+  }
 }
 
 @media (min-width: 901px) and (max-height: 800px) {
@@ -227,6 +232,7 @@ header p {
   .guide-controls { top: 27.94%; left: 3px; gap: 4px; }
   .guide-button { min-width: 32px; height: 76px; padding: 3px 2px; font-size: .5rem; border-width: 1.5px; border-radius: 7px; }
   .guide-reset { height: 44px; }
+  .guide-notes text[x="17"] { transform: translateX(14px); }
   .selected-label { top: 8px; left: 50%; min-width: 92px; min-height: 32px; font-size: clamp(1.35rem, 6vw, 1.8rem); }
   .test-button { top: 6px; left: 4px; min-height: 27px; padding: 3px 5px; border-width: 1.5px; border-radius: 7px; font-size: .54rem; }
   .sound-control { top: 5px; right: 4px; gap: 1px; }
