@@ -22,9 +22,12 @@ const STAFF_CLICK_X_MIN = 355;
 const STAFF_CLICK_X_MAX = 505;
 const STAFF_CLICK_Y_MIN = TOP;
 const STAFF_CLICK_Y_MAX = BOTTOM;
-const KEY_X = 684;
+// Keep the complete keyboard/slider teaching group clear of the right frame.
+const RIGHT_GROUP_X_OFFSET = -30;
+const KEY_X = 684 + RIGHT_GROUP_X_OFFSET;
 const KEY_WIDTH = 198;
-const SLIDER_X = 946;
+const SLIDER_X = 946 + RIGHT_GROUP_X_OFFSET;
+const SLIDER_HIGH_LABEL_Y = 30;
 const GUIDE_LINE_NOTE_X = 17;
 const GUIDE_SPACE_NOTE_X = 38;
 const GUIDE_NOTE_FONT_SIZE = 18;
@@ -515,7 +518,7 @@ function drawArrow(parent, staffPitch, keyPitch) {
 
 function drawSlider(parent, selectedIndex) {
   parent.append(line(SLIDER_X, TOP + STEP / 2, SLIDER_X, BOTTOM - STEP / 2, 10, "#333"));
-  addText(parent, SLIDER_X, 45, "High C", 16, { anchor: "middle" });
+  addText(parent, SLIDER_X, SLIDER_HIGH_LABEL_Y, "High C", 16, { anchor: "middle" });
   addText(parent, SLIDER_X, 704, "Low C", 16, { anchor: "middle" });
   for (const pitch of pitches) {
     const y = pitchY(pitch);

@@ -55,15 +55,16 @@ header p {
 }
 
 .sound-toggle {
-  min-height: 48px;
-  padding: 8px 20px;
-  border: 3px solid var(--ink);
-  border-radius: 14px;
+  min-height: 34px;
+  padding: 5px 15px;
+  border: 2px solid var(--ink);
+  border-radius: 11px;
   color: var(--ink);
   background: white;
   font: inherit;
-  font-size: 1.1rem;
-  font-weight: 900;
+  font-size: .82rem;
+  font-weight: 800;
+  line-height: 1.05;
   cursor: pointer;
 }
 
@@ -133,6 +134,7 @@ header p {
   font: inherit;
   font-size: .82rem;
   font-weight: 800;
+  line-height: 1.05;
   cursor: pointer;
 }
 
@@ -232,11 +234,12 @@ header p {
   .guide-controls { top: 27.94%; left: 3px; gap: 4px; }
   .guide-button { min-width: 32px; height: 76px; padding: 3px 2px; font-size: .5rem; border-width: 1.5px; border-radius: 7px; }
   .guide-reset { height: 44px; }
-  .guide-notes text[x="17"] { transform: translateX(14px); }
+  .guide-notes text[x="17"] { transform: translateX(2px); }
+  .guide-notes text[x="38"] { transform: translateX(-3px); }
   .selected-label { top: 8px; left: 50%; min-width: 92px; min-height: 32px; font-size: clamp(1.35rem, 6vw, 1.8rem); }
-  .test-button { top: 6px; left: 4px; min-height: 27px; padding: 3px 5px; border-width: 1.5px; border-radius: 7px; font-size: .54rem; }
+  .test-button { top: 6px; left: 4px; min-height: 23px; padding: 1px 6px; border-width: 1.5px; border-radius: 6px; font-size: .54rem; line-height: 1.05; }
   .sound-control { top: 5px; right: 4px; gap: 1px; }
-  .sound-toggle { min-height: 30px; padding: 3px 7px; font-size: .64rem; border-width: 1.5px; border-radius: 8px; }
+  .sound-toggle { min-height: 23px; padding: 1px 7px; font-size: .54rem; border-width: 1.5px; border-radius: 6px; line-height: 1.05; }
   .sound-status { min-height: 1em; max-width: 92px; font-size: .5rem; }
   .sound-status:not(.error) { visibility: hidden; }
   .creator-credit { margin: 7px 0 2px; font-size: .64rem; }
@@ -246,9 +249,9 @@ header p {
   .app-shell { width: calc(100% - 6px); }
   h1 { font-size: clamp(1.4rem, 6.5vw, 1.7rem); }
   header p { font-size: clamp(.66rem, 3.1vw, .8rem); }
-  .guide-button { min-width: 29px; height: 70px; font-size: .46rem; }
+  .guide-button { min-width: 25px; height: 70px; font-size: .46rem; }
   .guide-reset { height: 40px; }
   .selected-label { min-width: 82px; font-size: clamp(1.2rem, 5.5vw, 1.55rem); }
   .test-button { font-size: .49rem; }
-  .sound-toggle { padding-inline: 5px; font-size: .58rem; }
+  .sound-toggle { padding-inline: 5px; font-size: .49rem; }
 }
