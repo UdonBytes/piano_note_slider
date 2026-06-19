@@ -119,6 +119,26 @@ header p {
 .guide-button:disabled { cursor: default; opacity: .4; }
 .guide-button:disabled:hover { background: #fff; }
 .guide-reset { height: 76px; }
+.visual-notes-toggle {
+  background-color: #fffdf5;
+  background-image:
+    linear-gradient(rgba(255, 253, 245, .48), rgba(255, 253, 245, .48)),
+    url("src/assets/visual-notes-island-button.png");
+  background-position: center;
+  background-size: cover;
+  text-shadow:
+    -1px -1px 0 rgba(255, 255, 255, .95),
+     1px -1px 0 rgba(255, 255, 255, .95),
+    -1px  1px 0 rgba(255, 255, 255, .95),
+     1px  1px 0 rgba(255, 255, 255, .95);
+}
+
+.visual-notes-toggle[aria-pressed="true"] {
+  background-image:
+    linear-gradient(rgba(255, 216, 77, .28), rgba(255, 216, 77, .28)),
+    url("src/assets/visual-notes-island-button.png");
+  box-shadow: inset 0 0 0 2px var(--highlight-dark);
+}
 
 .test-button {
   position: absolute;
