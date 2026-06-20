@@ -33,6 +33,19 @@ const GUIDE_SPACE_NOTE_X = 38;
 const GUIDE_NOTE_FONT_SIZE = 18;
 const GUIDE_DOUBLE_PRESS_MS = 400;
 
+// Experimental, removable visual-memory overlays. Every item's Y position is
+// derived from pitchY(), so the poster geography follows the notation exactly.
+const VISUAL_NOTE_ASSET_BASE = "src/assets/guide-note-visuals";
+const VISUAL_NOTE_OVERLAYS = [
+  { note: "C6", type: "clouds", asset: "clouds-c6.png", x: 305, width: 285, height: 100, anchorY: 0.78, opacity: 0.48, label: "clouds", descriptor: ["In the", "Clouds"] },
+  { note: "C5", type: "seagull", asset: "seagull-c5.png", x: 420, yOffset: -13.8, descriptorYOffset: 13.8, width: 118, height: 92, anchorY: 0.55, opacity: 0.5, label: "C gull", descriptor: ["\"C\"gull"] },
+  { note: "G4", type: "boat-guitar", asset: "guitarist-boat-g4.png", x: 263.75, width: 125, height: 150, anchorY: 0.55, opacity: 0.5, label: "guitar boat", descriptor: ["Guitar"] },
+  { note: "C4", type: "middle-sea", x: 0, yOffset: 0, scale: 1, opacity: 0.62, label: "middle sea", descriptor: ["Middle", "\"Sea\""] },
+  { note: "F3", type: "fish", asset: "fish-f4.png", x: 445, width: 108, height: 88, anchorY: 0.5, opacity: 0.5, label: "fish", descriptor: ["Fish"] },
+  { note: "C3", type: "seaweed", asset: "seaweed-c3.png", x: 270, width: 120, height: 100, anchorY: 0.48, opacity: 0.46, label: "C weed", descriptor: ["\"C\"weed"] },
+  { note: "C2", type: "treasure", asset: "treasure-chest-c2.png", x: 350, width: 130, height: 135, anchorY: 0.63, opacity: 0.54, label: "deep sea treasure chest", descriptor: ["Deep \"C\"", "Treasure", "Chest"] },
+];
+
 // Audio files use simple note names such as C4.wav. Change this one constant
 // to "mp3" when the audio folder contains C4.mp3-style files instead.
 const AUDIO_DIRECTORY = "audio";
@@ -119,6 +132,7 @@ const state = {
   soundEnabled: false,
   lineNotesVisible: false,
   spaceNotesVisible: false,
+  visualNotesEnabled: false,
   testModeEnabled: false,
 };
 
@@ -128,6 +142,7 @@ const soundToggle = document.getElementById("soundToggle");
 const soundStatus = document.getElementById("soundStatus");
 const lineNotesToggle = document.getElementById("lineNotesToggle");
 const spaceNotesToggle = document.getElementById("spaceNotesToggle");
+const visualNotesToggle = document.getElementById("visualNotesToggle");
 const resetGuideNotes = document.getElementById("resetGuideNotes");
 const testModeToggle = document.getElementById("testModeToggle");
 const hiddenGuideNoteIds = new Set();
@@ -428,6 +443,309 @@ function drawGuideNotes(parent) {
   parent.append(group);
 }
 
+function appendVisualShape(parent, name, attributes) {
+  const shape = el(name, {
+    ...attributes,
+    "pointer-events": "none",
+    "vector-effect": "non-scaling-stroke",
+  });
+  parent.append(shape);
+  return shape;
+}
+
+function drawCloudCluster(parent) {
+  const cloud = (x, y, scale) => {
+    const group = el("g", { transform: `translate(${x} ${y}) scale(${scale})` });
+    appendVisualShape(group, "rect", {
+      x: -48, y: -3, width: 96, height: 26, rx: 13,
+      fill: "#e8f7ff", stroke: "#65a9d2", "stroke-width": 2.5,
+    });
+    for (const circle of [
+      { cx: -27, cy: -4, r: 21 },
+      { cx: 0, cy: -15, r: 30 },
+      { cx: 29, cy: -5, r: 20 },
+    ]) {
+      appendVisualShape(group, "circle", {
+        ...circle, fill: "#f6fcff", stroke: "#65a9d2", "stroke-width": 2.5,
+      });
+    }
+    appendVisualShape(group, "path", {
+      d: "M-43 16 Q-18 29 0 18 Q20 31 43 15",
+      fill: "none", stroke: "#99d4ef", "stroke-width": 7, "stroke-linecap": "round",
+    });
+    parent.append(group);
+  };
+  cloud(-78, 3, 0.82);
+  cloud(75, 8, 0.65);
+}
+
+function drawSeagull(parent) {
+  appendVisualShape(parent, "path", {
+    d: "M-45 3 Q-25 -25 -4 -4 Q17 -29 42 -5 Q18 -12 -2 8 Q-21 -10 -45 3 Z",
+    fill: "#f8fbff", stroke: "#506b78", "stroke-width": 3,
+    "stroke-linejoin": "round",
+  });
+  appendVisualShape(parent, "ellipse", {
+    cx: 4, cy: 7, rx: 27, ry: 11,
+    fill: "#f8fbff", stroke: "#506b78", "stroke-width": 2.5,
+  });
+  appendVisualShape(parent, "circle", {
+    cx: 27, cy: 0, r: 8, fill: "#ffffff", stroke: "#506b78", "stroke-width": 2,
+  });
+  appendVisualShape(parent, "circle", { cx: 30, cy: -2, r: 1.8, fill: "#24323a" });
+  appendVisualShape(parent, "path", {
+    d: "M35 1 L48 5 L35 8 Z", fill: "#f5a623", stroke: "#b46d00", "stroke-width": 1.5,
+  });
+  appendVisualShape(parent, "path", {
+    d: "M-20 14 L-38 25 L-9 18", fill: "#d8e4ea", stroke: "#506b78", "stroke-width": 2,
+  });
+}
+
+function drawBoatGuitar(parent) {
+  appendVisualShape(parent, "path", {
+    d: "M-62 20 Q0 56 64 19 L49 43 Q0 68 -49 43 Z",
+    fill: "#e79b74", stroke: "#704b3b", "stroke-width": 3, "stroke-linejoin": "round",
+  });
+  appendVisualShape(parent, "path", {
+    d: "M-45 30 Q0 47 48 29", fill: "none", stroke: "#fff5de", "stroke-width": 5,
+    "stroke-linecap": "round",
+  });
+  appendVisualShape(parent, "line", {
+    x1: -28, y1: 22, x2: -28, y2: -43, stroke: "#704b3b", "stroke-width": 3,
+  });
+  appendVisualShape(parent, "path", {
+    d: "M-24 -38 L-24 7 L27 7 Z",
+    fill: "#fff4ce", stroke: "#c6864c", "stroke-width": 2.5, "stroke-linejoin": "round",
+  });
+  appendVisualShape(parent, "circle", {
+    cx: 8, cy: -13, r: 9, fill: "#f4c49a", stroke: "#75503d", "stroke-width": 2,
+  });
+  appendVisualShape(parent, "path", {
+    d: "M1 -21 Q9 -31 18 -20", fill: "none", stroke: "#6c4735", "stroke-width": 5,
+    "stroke-linecap": "round",
+  });
+  appendVisualShape(parent, "line", {
+    x1: 8, y1: -3, x2: 5, y2: 20, stroke: "#75503d", "stroke-width": 4,
+    "stroke-linecap": "round",
+  });
+  appendVisualShape(parent, "circle", {
+    cx: 24, cy: 9, r: 13, fill: "#d2773f", stroke: "#6f4027", "stroke-width": 2.5,
+  });
+  appendVisualShape(parent, "circle", {
+    cx: 18, cy: 5, r: 8, fill: "#e5904f", stroke: "#6f4027", "stroke-width": 2,
+  });
+  appendVisualShape(parent, "line", {
+    x1: 30, y1: 1, x2: 58, y2: -20, stroke: "#6f4027", "stroke-width": 5,
+    "stroke-linecap": "round",
+  });
+  appendVisualShape(parent, "line", {
+    x1: 32, y1: 1, x2: 59, y2: -19, stroke: "#f6d7a9", "stroke-width": 1.3,
+  });
+}
+
+function middleSeaPath(y, startX = 52, endX = 510, waveCount = 14, amplitude = 8) {
+  const halfWave = (endX - startX) / (waveCount * 2);
+  let path = `M${startX} ${y}`;
+  for (let index = 0; index < waveCount; index += 1) {
+    path += ` q${halfWave / 2} ${-amplitude} ${halfWave} 0 q${halfWave / 2} ${amplitude} ${halfWave} 0`;
+  }
+  return path;
+}
+
+function drawMiddleSea(parent, y) {
+  appendVisualShape(parent, "rect", {
+    x: 52, y: y + 5, width: 458, height: BOTTOM - y - 2,
+    fill: "#bfe9f7", opacity: 0.18,
+  });
+  appendVisualShape(parent, "path", {
+    d: middleSeaPath(y), fill: "none", stroke: "#1684c1", "stroke-width": 7,
+    "stroke-linecap": "round", "stroke-linejoin": "round",
+    class: "visual-middle-sea-wave",
+  });
+  appendVisualShape(parent, "path", {
+    d: middleSeaPath(y + 11, 52, 510, 14, 7), fill: "none", stroke: "#72c7e8", "stroke-width": 2.5,
+    "stroke-linecap": "round", opacity: 0.7,
+  });
+  for (const bubble of [
+    { cx: 478, cy: y + 42, r: 5 },
+    { cx: 492, cy: y + 65, r: 3 },
+    { cx: 462, cy: y + 78, r: 4 },
+  ]) {
+    appendVisualShape(parent, "circle", {
+      ...bubble, fill: "#eafaff", stroke: "#3ba6d3", "stroke-width": 2,
+    });
+  }
+}
+
+function drawVisualDescriptor(parent, visual, y) {
+  if (!visual.descriptor) return;
+  y += visual.descriptorYOffset || 0;
+  const lineHeight = 13;
+  const firstLineY = y - ((visual.descriptor.length - 1) * lineHeight) / 2;
+  visual.descriptor.forEach((text, index) => {
+    const descriptor = addText(parent, 520, firstLineY + index * lineHeight, text, 12, {
+      anchor: "start",
+      baseline: "central",
+      weight: 500,
+      fill: "#969696",
+    });
+    descriptor.setAttribute("class", "visual-note-descriptor");
+    descriptor.setAttribute("opacity", "0.58");
+    descriptor.setAttribute("pointer-events", "none");
+  });
+}
+
+function drawSeaweed(parent) {
+  const seaweed = (x, lean, color) => {
+    appendVisualShape(parent, "path", {
+      d: `M${x} 30 C${x - lean} 13 ${x + lean} 0 ${x - 2} -18 C${x - 10} -31 ${x + 9} -38 ${x + 2} -49`,
+      fill: "none", stroke: color, "stroke-width": 5, "stroke-linecap": "round",
+    });
+  };
+  seaweed(-31, 11, "#4c9c70");
+  seaweed(-10, -10, "#75aa62");
+  seaweed(12, 9, "#3f8f79");
+  appendVisualShape(parent, "path", {
+    d: "M-50 32 Q-5 22 47 32", fill: "none", stroke: "#c9aa76", "stroke-width": 7,
+    "stroke-linecap": "round",
+  });
+  for (const bubble of [
+    { cx: 34, cy: -26, r: 4 },
+    { cx: 43, cy: -42, r: 2.8 },
+  ]) {
+    appendVisualShape(parent, "circle", {
+      ...bubble, fill: "#ecfbff", stroke: "#3ba6d3", "stroke-width": 2,
+    });
+  }
+}
+
+function drawFish(parent) {
+  // The body is centered at y=0 so its visual center exactly follows F3.
+  appendVisualShape(parent, "ellipse", {
+    cx: 0, cy: 0, rx: 44, ry: 25,
+    fill: "#ffd99b", stroke: "#9a6a2f", "stroke-width": 3,
+    class: "visual-fish-body",
+  });
+  appendVisualShape(parent, "path", {
+    d: "M-42 0 L-69 -23 L-65 0 L-69 23 Z",
+    fill: "#ffc875", stroke: "#9a6a2f", "stroke-width": 3, "stroke-linejoin": "round",
+  });
+  appendVisualShape(parent, "path", {
+    d: "M-10 -23 Q1 -38 14 -23 M-9 23 Q2 35 15 22",
+    fill: "none", stroke: "#c98539", "stroke-width": 3, "stroke-linecap": "round",
+  });
+  appendVisualShape(parent, "circle", { cx: 26, cy: -6, r: 3.4, fill: "#56452f" });
+  appendVisualShape(parent, "path", {
+    d: "M34 7 Q26 13 18 8", fill: "none", stroke: "#9a6a2f", "stroke-width": 2.5,
+    "stroke-linecap": "round",
+  });
+  appendVisualShape(parent, "path", {
+    d: "M-20 -18 Q-8 0 -20 18 M-6 -22 Q7 0 -6 22",
+    fill: "none", stroke: "#e6a454", "stroke-width": 2.3, "stroke-linecap": "round",
+  });
+  for (const bubble of [
+    { cx: 52, cy: -23, r: 4.5 },
+    { cx: 62, cy: -38, r: 3 },
+  ]) {
+    appendVisualShape(parent, "circle", {
+      ...bubble, fill: "#effcff", stroke: "#54a8ca", "stroke-width": 2,
+    });
+  }
+}
+
+function drawTreasureChest(parent) {
+  appendVisualShape(parent, "ellipse", {
+    cx: 0, cy: 29, rx: 64, ry: 12, fill: "#b89b6a", opacity: 0.45,
+  });
+  appendVisualShape(parent, "path", {
+    d: "M-49 -2 Q-47 -39 0 -43 Q47 -39 49 -2 Z",
+    fill: "#a95f31", stroke: "#62391f", "stroke-width": 4,
+  });
+  appendVisualShape(parent, "rect", {
+    x: -52, y: -3, width: 104, height: 47, rx: 7,
+    fill: "#bd6f35", stroke: "#62391f", "stroke-width": 4,
+  });
+  appendVisualShape(parent, "path", {
+    d: "M-50 9 H50 M-33 -32 V42 M32 -32 V42",
+    fill: "none", stroke: "#f1c34f", "stroke-width": 7,
+  });
+  appendVisualShape(parent, "rect", {
+    x: -10, y: 5, width: 20, height: 22, rx: 4,
+    fill: "#ffd75e", stroke: "#75541b", "stroke-width": 2.5,
+  });
+  appendVisualShape(parent, "circle", { cx: 0, cy: 14, r: 3, fill: "#75541b" });
+  for (const coin of [
+    { cx: -35, cy: -35, r: 7 },
+    { cx: -18, cy: -47, r: 6 },
+    { cx: 7, cy: -49, r: 8 },
+    { cx: 31, cy: -38, r: 6 },
+  ]) {
+    appendVisualShape(parent, "circle", {
+      ...coin, fill: "#ffd75e", stroke: "#a46f13", "stroke-width": 2,
+    });
+  }
+}
+
+function drawVisualNoteArt(parent, visual) {
+  const y = pitchY(byName[visual.note]) + (visual.yOffset || 0);
+  if (visual.type === "middle-sea") {
+    const seaGroup = el("g", {
+      class: "visual-note-art visual-note-middle-sea",
+      opacity: visual.opacity,
+      "pointer-events": "none",
+      "aria-label": `${visual.note}: ${visual.label}`,
+    });
+    drawMiddleSea(seaGroup, y);
+    parent.append(seaGroup);
+    drawVisualDescriptor(parent, visual, y);
+    return;
+  }
+
+  if (visual.asset) {
+    parent.append(el("image", {
+      class: `visual-note-art visual-note-image visual-note-${visual.type}`,
+      href: `${VISUAL_NOTE_ASSET_BASE}/${visual.asset}`,
+      x: visual.x - visual.width / 2,
+      y: y - visual.height * visual.anchorY,
+      width: visual.width,
+      height: visual.height,
+      opacity: visual.opacity,
+      preserveAspectRatio: "xMidYMid meet",
+      "pointer-events": "none",
+      "aria-label": `${visual.note}: ${visual.label}`,
+    }));
+    drawVisualDescriptor(parent, visual, y);
+    return;
+  }
+
+  const art = el("g", {
+    class: `visual-note-art visual-note-${visual.type}`,
+    transform: `translate(${visual.x} ${y}) scale(${visual.scale})`,
+    opacity: visual.opacity,
+    "pointer-events": "none",
+    "aria-label": `${visual.note}: ${visual.label}`,
+  });
+  if (visual.type === "clouds") drawCloudCluster(art);
+  if (visual.type === "seagull") drawSeagull(art);
+  if (visual.type === "boat-guitar") drawBoatGuitar(art);
+  if (visual.type === "fish") drawFish(art);
+  if (visual.type === "seaweed") drawSeaweed(art);
+  if (visual.type === "treasure") drawTreasureChest(art);
+  parent.append(art);
+}
+
+function renderVisualNotesOverlay(parent) {
+  if (!state.visualNotesEnabled) return;
+
+  const group = el("g", {
+    class: "visual-notes-overlay",
+    "aria-label": "Visual note memory aids",
+    "pointer-events": "none",
+  });
+  for (const visual of VISUAL_NOTE_OVERLAYS) drawVisualNoteArt(group, visual);
+  parent.append(group);
+}
+
 function drawStaffClickZone(parent) {
   parent.append(el("rect", {
     x: STAFF_CLICK_X_MIN,
@@ -569,6 +887,7 @@ function render() {
   const selectedPitch = pitches[state.selectedIndex];
   const musicLayer = el("g", { transform: `translate(0 ${MUSIC_Y_OFFSET})` });
   const staffGroup = el("g", { transform: `translate(${STAFF_GROUP_X_OFFSET} 0)` });
+  renderVisualNotesOverlay(staffGroup);
   drawGrandStaff(staffGroup);
   drawGuideNotes(staffGroup);
   drawStaffClickZone(staffGroup);
@@ -593,6 +912,7 @@ function syncGuideControls() {
   lineNotesToggle.textContent = `Line Notes: ${state.lineNotesVisible ? "On" : "Off"}`;
   spaceNotesToggle.setAttribute("aria-pressed", String(state.spaceNotesVisible));
   spaceNotesToggle.textContent = `Space Notes: ${state.spaceNotesVisible ? "On" : "Off"}`;
+  visualNotesToggle.setAttribute("aria-pressed", String(state.visualNotesEnabled));
   resetGuideNotes.disabled = hiddenGuideNoteIds.size === 0;
 }
 
@@ -807,6 +1127,12 @@ spaceNotesToggle.addEventListener("click", () => {
   state.spaceNotesVisible = !state.spaceNotesVisible;
   lastGuidePressId = null;
   lastGuidePressAt = 0;
+  syncGuideControls();
+  render();
+});
+
+visualNotesToggle.addEventListener("click", () => {
+  state.visualNotesEnabled = !state.visualNotesEnabled;
   syncGuideControls();
   render();
 });
