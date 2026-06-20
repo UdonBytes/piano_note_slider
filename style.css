@@ -91,7 +91,7 @@ header p {
   left: 7px;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-start;
   justify-content: flex-start;
   gap: 7px;
 }
@@ -119,6 +119,29 @@ header p {
 .guide-button:disabled { cursor: default; opacity: .4; }
 .guide-button:disabled:hover { background: #fff; }
 .guide-reset { height: 76px; }
+.visual-notes-toggle {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  background-color: #fffdf5;
+  background-image:
+    linear-gradient(rgba(255, 253, 245, .48), rgba(255, 253, 245, .48)),
+    url("src/assets/visual-notes-island-button.png");
+  background-position: center;
+  background-size: cover;
+  transform: none;
+  writing-mode: horizontal-tb;
+}
+
+.visual-notes-toggle[aria-pressed="true"] {
+  background-image:
+    linear-gradient(rgba(255, 216, 77, .28), rgba(255, 216, 77, .28)),
+    url("src/assets/visual-notes-island-button.png");
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 0 2px var(--highlight-dark);
+}
 
 .test-button {
   position: absolute;
@@ -197,6 +220,11 @@ header p {
 .staff-note.dragging { stroke: var(--highlight); stroke-width: 7; }
 .guide-note-hit { cursor: pointer; touch-action: manipulation; }
 .guide-note-hit:focus-visible { outline: none; stroke: var(--highlight-dark); stroke-width: 2; }
+.visual-notes-overlay,
+.visual-note-art { pointer-events: none; }
+.visual-note-art { filter: saturate(.92); }
+.visual-note-image { image-rendering: auto; }
+.visual-note-descriptor { letter-spacing: .15px; }
 
 /* Desktop frames are height-aware so the 825:1000 board never forces scroll. */
 @media (min-width: 901px) {
@@ -234,8 +262,10 @@ header p {
   .guide-controls { top: 27.94%; left: 3px; gap: 4px; }
   .guide-button { min-width: 32px; height: 76px; padding: 3px 2px; font-size: .5rem; border-width: 1.5px; border-radius: 7px; }
   .guide-reset { height: 44px; }
+  .visual-notes-toggle { width: 32px; min-width: 32px; height: 32px; }
   .guide-notes text[x="17"] { transform: translateX(2px); }
   .guide-notes text[x="38"] { transform: translateX(-3px); }
+  .visual-notes-overlay { opacity: .82; }
   .selected-label { top: 8px; left: 50%; min-width: 92px; min-height: 32px; font-size: clamp(1.35rem, 6vw, 1.8rem); }
   .test-button { top: 6px; left: 4px; min-height: 23px; padding: 1px 6px; border-width: 1.5px; border-radius: 6px; font-size: .54rem; line-height: 1.05; }
   .sound-control { top: 5px; right: 4px; gap: 1px; }
@@ -251,6 +281,7 @@ header p {
   header p { font-size: clamp(.66rem, 3.1vw, .8rem); }
   .guide-button { min-width: 25px; height: 70px; font-size: .46rem; }
   .guide-reset { height: 40px; }
+  .visual-notes-toggle { width: 25px; min-width: 25px; height: 25px; }
   .selected-label { min-width: 82px; font-size: clamp(1.2rem, 5.5vw, 1.55rem); }
   .test-button { font-size: .49rem; }
   .sound-toggle { padding-inline: 5px; font-size: .49rem; }
