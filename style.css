@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap");
+
 :root {
   --paper: #fffdf5;
   --ink: #121212;
@@ -6,6 +8,7 @@
   --highlight-dark: #e0aa00;
   --try: #b33a2f;
   --frame-max-width: 1180px;
+  --display-font: "Fredoka", "Nunito", ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
 }
 
 @font-face {
@@ -49,14 +52,17 @@ header { text-align: center; }
 
 h1 {
   margin: 0;
+  font-family: var(--display-font);
   font-size: clamp(2.2rem, 5vw, 4.25rem);
+  font-weight: 700;
   line-height: 1.05;
 }
 
 header p {
   margin: 10px 0 16px;
+  font-family: var(--display-font);
   font-size: clamp(1rem, 2.1vw, 1.4rem);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .sound-control {
@@ -76,7 +82,7 @@ header p {
   border-radius: 11px;
   color: var(--ink);
   background: white;
-  font: inherit;
+  font-family: var(--display-font);
   font-size: .82rem;
   font-weight: 800;
   line-height: 1.05;
@@ -119,7 +125,7 @@ header p {
   border-radius: 10px;
   color: var(--ink);
   background: #fff;
-  font: inherit;
+  font-family: var(--display-font);
   font-size: .72rem;
   font-weight: 800;
   line-height: 1.05;
@@ -169,7 +175,7 @@ header p {
   border-radius: 11px;
   color: var(--ink);
   background: #fff;
-  font: inherit;
+  font-family: var(--display-font);
   font-size: .82rem;
   font-weight: 800;
   line-height: 1.05;
@@ -196,8 +202,9 @@ header p {
   left: 50%;
   min-width: 190px;
   min-height: 54px;
+  font-family: var(--display-font);
   font-size: clamp(2.25rem, 5vw, 4.4rem);
-  font-weight: 1000;
+  font-weight: 700;
   line-height: .95;
   text-align: center;
   pointer-events: none;
