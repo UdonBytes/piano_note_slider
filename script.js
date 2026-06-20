@@ -143,6 +143,7 @@ const soundStatus = document.getElementById("soundStatus");
 const lineNotesToggle = document.getElementById("lineNotesToggle");
 const spaceNotesToggle = document.getElementById("spaceNotesToggle");
 const visualNotesToggle = document.getElementById("visualNotesToggle");
+const appShell = document.querySelector(".app-shell");
 const resetGuideNotes = document.getElementById("resetGuideNotes");
 const testModeToggle = document.getElementById("testModeToggle");
 const hiddenGuideNoteIds = new Set();
@@ -1208,6 +1209,40 @@ soundToggle.addEventListener("click", async () => {
 syncGuideControls();
 syncTestControls();
 render();
+
+let viewportFitFrame = 0;
+
+function fitAppToViewport() {
+  if (!appShell) return;
+
+  // Measure the design at its natural size; transforms do not affect these
+  // layout dimensions, so this does not create a resize feedback loop.
+  appShell.style.setProperty("--app-fit-scale", "1");
+  const viewportHeight = window.visualViewport?.height || window.innerHeight;
+  const availableWidth = Math.max(1, window.innerWidth - 4);
+  const availableHeight = Math.max(1, viewportHeight - 4);
+  const naturalWidth = appShell.offsetWidth;
+  const naturalHeight = appShell.offsetHeight;
+  const scale = Math.min(
+    1,
+    availableWidth / naturalWidth,
+    availableHeight / naturalHeight,
+  );
+
+  appShell.style.setProperty("--app-fit-scale", scale.toFixed(4));
+}
+
+function requestViewportFit() {
+  window.cancelAnimationFrame(viewportFitFrame);
+  viewportFitFrame = window.requestAnimationFrame(fitAppToViewport);
+}
+
+window.addEventListener("resize", requestViewportFit, { passive: true });
+window.addEventListener("orientationchange", requestViewportFit, { passive: true });
+window.visualViewport?.addEventListener("resize", requestViewportFit, { passive: true });
+new ResizeObserver(requestViewportFit).observe(appShell);
+document.fonts?.ready.then(requestViewportFit);
+requestViewportFit();
 
 // Fetch and decode every note immediately. The context remains suspended and
 // nothing can play until the student explicitly taps Sound On.
